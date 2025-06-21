@@ -1,0 +1,51 @@
+Project Structure & Context:
+
+Work only inside workpace/mediflux folder.
+
+Key directories:
+core_orchestration/ (contains organization_mcp.py and MCP logic)
+backend/ (contains FHIR/annuaire API logic)
+agentic_user_interface/ (frontend, to be adapted for chat)
+Servers are running and accessible:
+Annuaire API: http://localhost:8000/api/organization/search
+MCP Orchestration: http://localhost:9000
+The MCP logic in organization_mcp.py works for basic queries (e.g., "find a hospital" returns valid results).
+
+What works:
+The backend and MCP servers are up and respond to queries.
+The MCP can parse simple natural language queries and return organization info from the annuaire API.
+Running PYTHONPATH=$(pwd) python [organization_mcp.py](http://_vscodecontentref_/4) "find a hospital" returns a valid result.
+
+What doesn't work / Needs improvement:
+The full workflow from user prompt → orchestrator → MCP selection → info retrieval → user-friendly response is not yet solidified.
+The frontend in agentic_user_interface/ does not yet provide a basic chat agent or connect to the orchestrator.
+
+End Goal (MVP):
+User sends a natural language prompt via a web chat interface (on port 7000).
+The orchestrator interprets the prompt, selects the correct MCP, and retrieves the relevant info.
+The agent returns a user-friendly, natural language response with the requested info.
+Instructions for the agent:
+Backend: Do not change the annuaire API or MCP logic unless strictly necessary for MVP.
+Orchestrator: Ensure there is a main script (or adapt an existing one) that:
+Receives a user prompt.
+Selects the correct MCP (e.g., organization MCP for hospital/clinic queries).
+Passes the prompt to the MCP and gets the result.
+Formats the result into a user-friendly, natural language response.
+Frontend: In agentic_user_interface/:
+Adapt or create a minimal web chat interface (e.g., using FastAPI + simple HTML/JS or Streamlit).
+The chat should POST user prompts to the orchestrator and display the response.
+Deploy the frontend at port 7000.
+Integration: Ensure the full flow works: user prompt → orchestrator → MCP → annuaire API → orchestrator → frontend.
+Testing: Test with prompts like "find a hospital" and ensure the user sees a friendly, readable answer.
+
+Tools:
+browser_use and python_execute
+
+Notes:
+Focus on the MVP: minimal, working, and user-friendly.
+Do not over-engineer the MCP logic; use what already works.
+Prioritize the end-to-end flow and user experience.
+
+Summary:
+Deliver an MVP where a user can chat with the system at localhost:7000, ask for things like "find a hospital", and get a friendly, readable answer using the existing backend and MCP logic. Only work inside mediflux.
+

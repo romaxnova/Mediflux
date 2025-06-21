@@ -1,0 +1,55 @@
+{
+    "name": "mediflux-mcp-organization",
+    "description": "MCP tool for querying French FHIR organizations by name and postal code.",
+    "tool": {
+        "function": "organization_context",
+        "description": "Get the last 3 organizations by name and postal code from the French FHIR API.",
+        "parameters": [
+            {
+                "name": "query",
+                "type": "string",
+                "description": "A natural language query, e.g. 'last 3 CABINET D'OSTEOPATHIE in 75003'"
+            }
+        ],
+        "returns": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "lastUpdated": {
+                                "type": "string"
+                            },
+                            "address": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "type": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "active": {
+                                "type": [
+                                    "boolean",
+                                    "null"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

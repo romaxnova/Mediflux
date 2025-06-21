@@ -1,0 +1,5 @@
+API Annuaire Santé: curl -H "ESANTE-API-KEY: b2c9aa48-53c0-4d1b-83f3-7b48a3e26740" "https://gateway.api.esante.gouv.fr/fhir/metadata?_pretty=true&_format=json
+API Address, read: https://adresse.data.gouv.fr/outils/api-doc/adresse
+API France Connect Sandbox: https://docs.partenaires.franceconnect.gouv.fr/fs/fs-integration/env-sandbox-fc/
+API Terminologies de Santé (SMT): https://smt.esante.gouv.fr/assistance/utilisation-des-api/
+API Eclaire (Base nationale des essais cliniques): https://eclaire-api.sante.gouv.fr/api-json
