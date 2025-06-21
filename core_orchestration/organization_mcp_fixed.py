@@ -58,12 +58,11 @@ def parse_organization_query(query: str):
     
     # Extract organization name/type (after removing action words and postal codes)
     # Remove common action words and prepositions
-    clean_query = re.sub(r'\b(?:find|show|get|list|in|from|at|near|of|the|a|an|organizations?|hospitals?|clinics?|cabinets?)\b', '', query, flags=re.IGNORECASE)
+    clean_query = re.sub(r'\b(?:find|show|get|list|in|from|at|near|of|the|a|an)\b', '', query, flags=re.IGNORECASE)
     clean_query = re.sub(r'\b\d+\b', '', clean_query)  # Remove any remaining numbers
     clean_query = re.sub(r'\s+', ' ', clean_query).strip()  # Clean up whitespace
     
-    # Only add name parameter if we have a meaningful search term left
-    if clean_query and len(clean_query) > 2:  # Avoid single letters or very short terms
+    if clean_query:
         params["name"] = clean_query
     
     # Address/city extraction
@@ -168,14 +167,11 @@ class OrganizationMCP(BaseMCP):
                     address_info = {}
                     if addresses:
                         addr = addresses[0]
-                        address_lines = addr.get("line", [])
-                        # Filter out None values before joining
-                        clean_lines = [line for line in address_lines if line is not None]
                         address_info = {
                             "text": addr.get("text", ""),
                             "city": addr.get("city", ""),
                             "postalCode": addr.get("postalCode", ""),
-                            "line": " ".join(clean_lines)
+                            "line": " ".join(addr.get("line", []))
                         }
                     
                     # Extract type information

@@ -55,8 +55,16 @@ class QueryRequest(BaseModel):
 
 @app.post("/mcp/organization_context")
 def mcp_organization_context(req: QueryRequest):
-    org_mcp = orchestrator.mcp_registry.get_mcp("organization")
-    return {"result": org_mcp.process_query(req.query)}
+    try:
+        print(f"[DEBUG] Organization context query: {req.query}")
+        # Create organization MCP instance directly to avoid orchestrator issues
+        org_mcp = OrganizationMCP()
+        result = org_mcp.process_query(req.query)
+        print(f"[DEBUG] Organization MCP result: {result}")
+        return {"result": result}
+    except Exception as e:
+        print(f"[ERROR] Organization context error: {str(e)}")
+        return {"result": {"success": False, "error": str(e), "results": []}}
 
 @app.get("/api/practitionerrole/search")
 async def practitioner_role_search(specialty: str = None, address_postalcode: str = None):
@@ -226,10 +234,19 @@ def smart_search_strategy(query: str) -> dict:
     geographic_info = extract_geographic_context(query_lower)
     
     if practitioner_name:
-        # Use name-based search for specific practitioners
-        search_params["name"] = practitioner_name
-        search_strategy = "name_search"
-        print(f"[DEBUG] Using name search for: {practitioner_name}")
+        # Enhanced name-based search using proper FHIR parameters
+        name_parts = practitioner_name.strip().split()
+        if len(name_parts) >= 2:
+            # Use family and given name parameters for better accuracy
+            search_params["family"] = name_parts[-1]  # Last name is typically family name
+            search_params["given"] = " ".join(name_parts[:-1])  # Everything else is given name
+            search_strategy = "name_search"
+            print(f"[DEBUG] Using FHIR name search: family={name_parts[-1]}, given={' '.join(name_parts[:-1])}")
+        else:
+            # Single name - try family name search
+            search_params["family"] = practitioner_name
+            search_strategy = "name_search"
+            print(f"[DEBUG] Using family name search: {practitioner_name}")
     else:
         # Enhanced role-based search with better specialty detection
         role_code = detect_healthcare_role(query_lower)
@@ -563,58 +580,129 @@ IMPORTANT: Be honest about limitations and explain geographic filtering when loc
 
 @app.post("/mcp/execute")
 async def mcp_execute(request: Request):
-    """Smart MCP execution - name-based search + intelligent filtering"""
+    """Smart MCP execution with intelligent query routing (practitioners vs organizations)"""
     body = await request.json()
     query = body.get("prompt") or body.get("query") or ""
 
     try:
         print(f"[DEBUG] Processing query: {query}")
         
-        # Determine smart search strategy
-        search_config = smart_search_strategy(query)
-        print(f"[DEBUG] Search strategy: {search_config['strategy']}")
+        # Detect query type - organization vs practitioner
+        query_lower = query.lower()
+        org_keywords = [
+            "hospital", "hospitals", "hôpital", "hôpitaux", 
+            "clinic", "clinics", "clinique", "cliniques",
+            "medical center", "medical centres", "centre médical", "centres médicaux",
+            "organization", "organizations", "organisation", "organisations",
+            "cabinet", "cabinets", "établissement", "établissements",
+            "structure", "structures", "institution", "institutions"
+        ]
         
-        # Make API call with smart strategy
-        fhir_data = make_direct_api_call(search_config)
-        total_entries = len(fhir_data.get('entry', []))
-        print(f"[DEBUG] Retrieved {total_entries} entries for processing")
+        is_organization_query = any(keyword in query_lower for keyword in org_keywords)
         
-        # Let AI intelligently parse and filter with search context
-        result = ai_parse_fhir_data(query, fhir_data, search_config)
-        
-        # Update search parameters based on the enhanced strategy
-        if result.get('structured_data', {}).get('data'):
-            result['structured_data']['data']['search_metadata'] = {
-                "strategy_used": search_config['strategy'],
-                "detected_name": search_config.get('detected_name'),
-                "geographic_info": search_config.get('geographic_info', {}),
-                "result_preference": search_config.get('result_preference', {}),
-                "api_params": search_config['params'],
-                "total_retrieved": total_entries
-            }
-        
-        # Log AI analysis results
-        if result.get('structured_data', {}).get('data', {}).get('query_analysis'):
-            analysis = result['structured_data']['data']['query_analysis']
-            print(f"[DEBUG] AI Analysis: {analysis}")
-        
-        # Convert to MCP response format
-        response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": result.get("message", "Query processed successfully")
-                    },
-                    "data": {
-                        "natural_response": result.get("natural_response"),
-                        "structured_data": result.get("structured_data", {}),
-                        "success": result.get("success", False)
-                    }
+        if is_organization_query:
+            print(f"[DEBUG] Detected organization query, routing to OrganizationMCP")
+            # Route to organization search
+            org_mcp = orchestrator.mcp_registry.get_mcp("organization")
+            org_result = org_mcp.process_query(query)
+            
+            if org_result.get("success"):
+                # Format organization results for consistent response structure
+                organizations = org_result.get("results", [])
+                response = {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": f"I found {len(organizations)} healthcare organizations matching your criteria."
+                            },
+                            "data": {
+                                "natural_response": f"I found {len(organizations)} healthcare organizations matching your criteria.",
+                                "structured_data": {
+                                    "success": True,
+                                    "message": f"Found {len(organizations)} organizations",
+                                    "data": {
+                                        "results": organizations,
+                                        "query_type": "organization_search",
+                                        "search_metadata": {
+                                            "query_type": "organization",
+                                            "total_results": len(organizations)
+                                        }
+                                    }
+                                },
+                                "success": True
+                            }
+                        }
+                    ]
                 }
-            ]
-        }
-        
-        return response
+                return response
+            else:
+                # Organization search failed, return error
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": org_result.get("error", "No organizations found matching your criteria.")
+                            },
+                            "data": {
+                                "natural_response": org_result.get("error", "No organizations found matching your criteria."),
+                                "structured_data": {
+                                    "success": False,
+                                    "message": org_result.get("error", "No organizations found"),
+                                    "data": {"results": []}
+                                },
+                                "success": False
+                            }
+                        }
+                    ]
+                }
+        else:
+            print(f"[DEBUG] Detected practitioner query, using existing logic")
+            # Existing practitioner search logic
+            # Determine smart search strategy
+            search_config = smart_search_strategy(query)
+            print(f"[DEBUG] Search strategy: {search_config['strategy']}")
+            
+            # Make API call with smart strategy
+            fhir_data = make_direct_api_call(search_config)
+            total_entries = len(fhir_data.get('entry', []))
+            print(f"[DEBUG] Retrieved {total_entries} entries for processing")
+            
+            # Let AI intelligently parse and filter with search context
+            result = ai_parse_fhir_data(query, fhir_data, search_config)
+            
+            # Update search parameters based on the enhanced strategy
+            if result.get('structured_data', {}).get('data'):
+                result['structured_data']['data']['search_metadata'] = {
+                    "strategy_used": search_config['strategy'],
+                    "detected_name": search_config.get('detected_name'),
+                    "geographic_info": search_config.get('geographic_info', {}),
+                    "result_preference": search_config.get('result_preference', {}),
+                    "api_params": search_config['params'],
+                    "total_retrieved": total_entries
+                }
+            
+            # Log AI analysis results
+            if result.get('structured_data', {}).get('data', {}).get('query_analysis'):
+                analysis = result['structured_data']['data']['query_analysis']
+                print(f"[DEBUG] AI Analysis: {analysis}")
+            
+            # Convert to MCP response format
+            response = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": result.get("message", "Query processed successfully")
+                        },
+                        "data": {
+                            "natural_response": result.get("natural_response"),
+                            "structured_data": result.get("structured_data", {}),
+                            "success": result.get("success", False)
+                        }
+                    }
+                ]
+            }
+            
+            return response
 
     except Exception as e:
         print(f"[ERROR] Query processing failed: {e}")

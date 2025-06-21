@@ -187,6 +187,77 @@
   font-weight: 600;
 }
 
+/* Organizations Container */
+.organizations-container {
+  text-align: left;
+  margin-top: 2rem;
+}
+
+.organizations-container h2 {
+  color: #333;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #28a745;
+  padding-bottom: 0.5rem;
+}
+
+.organizations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+/* Organization Card */
+.organization-card {
+  background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e8 100%);
+  border: 1px solid #c8e6c9;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.organization-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.organization-header {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #a5d6a7;
+}
+
+.organization-name {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #2e7d32;
+  margin: 0;
+  margin-bottom: 0.25rem;
+}
+
+.organization-type {
+  font-size: 0.9rem;
+  color: #558b2f;
+  font-style: italic;
+}
+
+.organization-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.organization-card .detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  border-left: 3px solid #28a745;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .app-container {
@@ -199,12 +270,14 @@
     margin-right: 0;
   }
   
-  .practitioners-grid {
+  .practitioners-grid,
+  .organizations-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
   
-  .practitioner-card {
+  .practitioner-card,
+  .organization-card {
     padding: 1rem;
   }
   
@@ -219,6 +292,29 @@
   }
   
   .detail-value {
+    text-align: left;
+  }
+  
+  .organizations-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .organization-card {
+    padding: 1rem;
+  }
+  
+  .organization-card .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .organization-card .detail-label {
+    margin-bottom: 0.25rem;
+    min-width: auto;
+  }
+  
+  .organization-card .detail-value {
     text-align: left;
   }
 }

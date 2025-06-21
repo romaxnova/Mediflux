@@ -15,29 +15,46 @@ interface Practitioner {
   id: string;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  type: string | null;
+  active: boolean;
+  address: {
+    text: string;
+    city: string;
+    postalCode: string;
+    line: string;
+  };
+  lastUpdated: string;
+}
+
 interface ApiResponse {
   choices: Array<{
     message: {
       content: string;
     };
     data: {
-      natural_response?: string;
-      structured_data?: {
-        success: boolean;
-        data: {
-          results: Practitioner[];
-          query_params: any;
+      natural_response?: string;        structured_data?: {
+          success: boolean;
+          data: {
+            results: (Practitioner | Organization)[];
+            query_params?: any;
+            query_type?: string;
+          };
         };
-      };
       success: boolean;
     };
   }>;
+  error?: string;
 }
 
 function App() {
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [queryType, setQueryType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,6 +62,8 @@ function App() {
     setIsLoading(true);
     setResponse('');
     setPractitioners([]);
+    setOrganizations([]);
+    setQueryType('');
     
     try {
       const res = await fetch('http://localhost:9000/mcp/execute', {
@@ -67,9 +86,22 @@ function App() {
           setResponse(content);
         }
         
-        // Extract structured practitioner data if available
+        // Extract structured data if available
         if (responseData?.structured_data?.success && responseData.structured_data.data?.results) {
-          setPractitioners(responseData.structured_data.data.results);
+          const results = responseData.structured_data.data.results;
+          const detectedQueryType = responseData.structured_data.data.query_type || 
+                           (responseData.structured_data.data as any).search_metadata?.query_type;
+          
+          setQueryType(detectedQueryType || '');
+          console.log('Query type detected:', detectedQueryType, 'State:', queryType); // Debug log
+          
+          // Check if results are organizations or practitioners based on query type
+          // queryType is used for debugging and future enhancements
+          if (detectedQueryType === 'organization_search' || (results.length > 0 && 'address' in results[0])) {
+            setOrganizations(results as Organization[]);
+          } else {
+            setPractitioners(results as Practitioner[]);
+          }
         }
       } else if (data.error) {
         setResponse('Error: ' + data.error);
@@ -91,7 +123,7 @@ function App() {
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter your query, e.g., 'find a sage-femme in paris 17th arrondissement'"
+          placeholder="Enter your query, e.g., 'find a sage-femme in paris 17th arrondissement' or 'find hospitals in 75017'"
         />
         <button type="submit" disabled={isLoading}>
           {isLoading ? 'Sending...' : 'Send'}
@@ -152,6 +184,58 @@ function App() {
                       {practitioner.active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {organizations.length > 0 && (
+        <div className="organizations-container">
+          <h2>Healthcare Organizations Found:</h2>
+          <div className="organizations-grid">
+            {organizations.map((organization, index) => (
+              <div key={organization.id || index} className="organization-card">
+                <div className="organization-header">
+                  <h3 className="organization-name">{organization.name}</h3>
+                  {organization.type && (
+                    <span className="organization-type">({organization.type})</span>
+                  )}
+                </div>
+                
+                <div className="organization-details">
+                  <div className="detail-row">
+                    <span className="detail-label">Address:</span>
+                    <span className="detail-value">
+                      {organization.address.line && `${organization.address.line}, `}
+                      {organization.address.city && `${organization.address.city} `}
+                      {organization.address.postalCode}
+                    </span>
+                  </div>
+                  
+                  {organization.address.text && (
+                    <div className="detail-row">
+                      <span className="detail-label">Full Address:</span>
+                      <span className="detail-value">{organization.address.text}</span>
+                    </div>
+                  )}
+                  
+                  <div className="detail-row">
+                    <span className="detail-label">Status:</span>
+                    <span className={`detail-value status ${organization.active ? 'active' : 'inactive'}`}>
+                      {organization.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  
+                  {organization.lastUpdated && (
+                    <div className="detail-row">
+                      <span className="detail-label">Last Updated:</span>
+                      <span className="detail-value">
+                        {new Date(organization.lastUpdated).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
