@@ -93,20 +93,35 @@ class HealthcareOrchestrator:
                 if not results:
                     return "I couldn't find any healthcare professionals matching your criteria. You might want to try expanding your search area or checking different specialties."
                 
-                # Create a prompt for OpenAI
+                # Create a prompt for OpenAI to generate a rich, informative response
                 prompt = f"""
-Transform this healthcare search result into a natural, conversational response to the user's query: "{query}"
+Transform this healthcare search result into a natural, informative response to the user's query: "{query}"
 
 Search Results:
 {results}
 
+Available data fields per practitioner:
+- name, title, specialty_label 
+- practice_type (e.g., "Secteur libéral")
+- fonction_label (e.g., "Exercice régulier", "Chef de service")
+- genre_activite_label (e.g., "Activité principale")
+- organization_ref (hospital/clinic affiliation if present)
+- smart_card info (professional credentials)
+- active status
+
 Requirements:
 - Be conversational and helpful
-- Include the practitioner names and specialties
-- Mention the location if relevant
-- Keep it concise but informative
-- Sound natural, not robotic
+- Include practitioner names and specialties clearly
+- Mention practice setting (secteur libéral, établissement, etc.) to help users understand the context
+- Include professional status (exercice régulier, chef de service, etc.) when relevant
+- If organization_ref exists, mention institutional affiliation
+- Keep it informative but concise (2-3 sentences per practitioner)
+- Sound natural and professional, like a knowledgeable healthcare assistant
 - Use "I found" instead of "The system found"
+- For multiple practitioners, clearly separate each one
+- Focus on practical information users need to make healthcare decisions
+
+Example style: "I found 2 sage-femmes in the 17th arrondissement. Dr. Dorina Ernst practices in the liberal sector with regular exercise status. Justine Ayello is also in liberal practice and has an institutional affiliation."
 """
                 
                 response = self.openai_client.chat.completions.create(
@@ -126,10 +141,27 @@ Requirements:
             
         except Exception as e:
             print(f"[ERROR] OpenAI API error: {e}")
-            # Fallback to structured response
+            # Fallback to structured response with enhanced formatting
             if "results" in structured_data.get("data", {}):
                 results = structured_data["data"]["results"]
                 if results:
-                    names = [r.get("name", "Unknown") for r in results[:3]]
-                    return f"I found {len(results)} healthcare professionals: {', '.join(names)}{'...' if len(results) > 3 else ''}."
+                    # Create a more informative fallback response
+                    practitioner_summaries = []
+                    for r in results[:3]:
+                        name = r.get("name", "Unknown")
+                        specialty = r.get("specialty_label") or r.get("specialty", "Unknown")
+                        title = r.get("title", "")
+                        practice_type = r.get("practice_type", "")
+                        
+                        summary = f"{name}"
+                        if title:
+                            summary += f" ({title})"
+                        summary += f" - {specialty}"
+                        if practice_type and practice_type != "Cabinet privé":
+                            summary += f" [{practice_type}]"
+                        
+                        practitioner_summaries.append(summary)
+                    
+                    more_text = f" and {len(results) - 3} more" if len(results) > 3 else ""
+                    return f"I found {len(results)} healthcare professionals: {'; '.join(practitioner_summaries)}{more_text}."
             return structured_data.get("message", "I found some results for you.")

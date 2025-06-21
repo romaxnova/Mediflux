@@ -25,14 +25,54 @@ PARIS_ARR_MAP = {
     "16th": "75016", "17th": "75017", "18th": "75018", "19th": "75019", "20th": "75020"
 }
 
-# Specialty mapping
+# Specialty mapping - Use actual codes from French health system
 SPECIALTY_MAP = {
+    # Main professions with real codes from Annuaire Santé
     "generaliste": "60",
-    "medecin generaliste": "60",
+    "medecin generaliste": "60", 
     "general practitioner": "60",
     "gp": "60",
+    "medecin": "60",
+    
+    # Specialists - most are coded as "95" in the API
     "specialist": "95",
     "medecin specialiste": "95",
+    "cardiologue": "95",  # Changed from "38" to "95"
+    "cardiologist": "95",
+    "dermatologue": "95",  # Changed from "33" to "95"
+    "dermatologist": "95",
+    "allergologue": "95",  # Changed from "36" to "95"
+    "allergist": "95",
+    "pediatre": "95",  # Changed from "77" to "95"
+    "pediatrician": "95",
+    "gastroenterologue": "95",  # Changed from "40" to "95"
+    "gastroenterologist": "95",
+    "endocrinologue": "95",  # Changed from "37" to "95"
+    "endocrinologist": "95",
+    "neurologue": "95",
+    "neurologist": "95",
+    "psychiatre": "95",
+    "psychiatrist": "95",
+    "gynecologist": "95",
+    "gynécologue": "95",
+    "urologue": "95",
+    "urologist": "95",
+    "ophtalmologiste": "95",
+    "ophthalmologist": "95",
+    "anesthesiste": "95",
+    "anesthesiologist": "95",
+    "rhumatologue": "95",
+    "rheumatologist": "95",
+    "pneumologue": "95",
+    "pulmonologist": "95",
+    "radiologue": "95",
+    "radiologist": "95",
+    "oncologue": "95",
+    "oncologist": "95",
+    "chirurgien": "95",
+    "surgeon": "95",
+    
+    # Specific professions with unique codes
     "dentist": "86",
     "dentiste": "86",
     "chirurgien-dentiste": "86",
@@ -40,22 +80,14 @@ SPECIALTY_MAP = {
     "midwife": "31",
     "pharmacien": "96",
     "pharmacist": "96",
-    "anesthesiste": "34",
-    "anesthesiologist": "34",
-    "dermatologue": "33",
-    "dermatologist": "33",
-    "allergologue": "36",
-    "allergist": "36",
-    "chiropracteur": "54",
-    "chiropractor": "54",
-    "pediatre": "77",
-    "pediatrician": "77",
-    "cardiologue": "38",
-    "cardiologist": "38",
-    "gastroenterologue": "40",
-    "gastroenterologist": "40",
-    "endocrinologue": "37",
-    "endocrinologist": "37"
+    
+    # Other health professionals
+    "infirmier": "23",  # Assuming code for nurses
+    "nurse": "23",
+    "kinésithérapeute": "40",  # Assuming code for physiotherapists
+    "physiotherapist": "40",
+    "osteopath": "50",  # Assuming code for osteopaths
+    "ostéopathe": "50",
 }
 
 # English to French specialty translations
@@ -114,16 +146,17 @@ class PractitionerRoleMCP(BaseMCP):
                         return self.specialty_map[fr]
         return None
 
-    def _parse_query_params(self, query: str) -> Dict[str, Any]:
+    def _parse_query_params(self, query: str) -> tuple[Dict[str, Any], int]:
         """Extract query parameters from natural language query"""
         params = {}
         
         # Try fuzzy specialty matching
         specialty = self._fuzzy_specialty_match(query)
         if specialty:
-            params["specialty"] = specialty
+            # Use 'role' parameter instead of 'specialty' - this is what the API actually supports
+            params["role"] = specialty
             
-        # Extract postal code/arrondissement
+        # Extract postal code/arrondissement for local filtering
         postal_code = None
         
         # Try Paris arrondissement patterns
@@ -148,6 +181,7 @@ class PractitionerRoleMCP(BaseMCP):
                 postal_code = m.group(1)
                 
         if postal_code:
+            # Use address-postalcode for local filtering (not API parameter)
             params["address-postalcode"] = postal_code
             
         # Extract count
@@ -162,11 +196,17 @@ class PractitionerRoleMCP(BaseMCP):
             # Parse query parameters
             params, count = self._parse_query_params(query)
             
-            # Call backend API
-            endpoint = "http://localhost:8000/api/practitionerrole/search"
-            print(f"[DEBUG] Querying {endpoint} with params {params}")
+            # Separate API parameters from local filtering parameters
+            api_params = {k: v for k, v in params.items() if k in ['role', 'specialty']}
+            local_filter_params = {k: v for k, v in params.items() if k in ['address-postalcode']}
             
-            resp = requests.get(endpoint, params=params)
+            # Call backend API with correct parameters
+            endpoint = "http://localhost:8000/api/practitionerrole/search"
+            print(f"[DEBUG] Querying {endpoint} with API params {api_params} and local filters {local_filter_params}")
+            
+            # Combine parameters for the request
+            request_params = {**api_params, **local_filter_params}
+            resp = requests.get(endpoint, params=request_params)
             resp.raise_for_status()
             bundle = resp.json()
             
@@ -182,12 +222,24 @@ class PractitionerRoleMCP(BaseMCP):
             results = []
             for item in roles:
                 pr = item.get("resource", item)
-                results.append({
+                # Pass through all the enhanced data from the backend
+                result = {
                     "name": pr.get("name", "Unknown"),
+                    "title": pr.get("title", ""),
                     "specialty": pr.get("specialite_label", pr.get("specialite", "Unknown")),
+                    "specialty_label": pr.get("specialty_label", pr.get("specialite_label", "")),
+                    "practice_type": pr.get("practice_type", ""),
+                    "fonction_label": pr.get("fonction_label", ""),
+                    "genre_activite_label": pr.get("genre_activite_label", ""),
+                    "organization_ref": pr.get("organization_ref"),
+                    "smart_card": pr.get("smart_card", {}),
                     "active": pr.get("active", True),
-                    "id": pr.get("id", "unknown")
-                })
+                    "id": pr.get("id", "unknown"),
+                    # Include location information if available
+                    "location_match": pr.get("location_match", "unknown"),
+                    "address_info": pr.get("address_info", {})
+                }
+                results.append(result)
 
             return {
                 "message": f"Found {len(results)} practitioners",
