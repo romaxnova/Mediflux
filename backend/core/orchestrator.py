@@ -20,13 +20,129 @@ class HealthcareOrchestrator:
         """Register a new MCP with the orchestrator"""
         self.mcp_registry.register(name, mcp)
 
-    def process_query(self, query: str, context: Dict[str, Any] = None) -> Dict:
-        """Simplified query processing that directly calls appropriate MCP"""
+    def ai_interpret_query(self, query: str) -> Dict[str, Any]:
+        """Use AI to interpret the query with healthcare context"""
         try:
-            # Parse intent and entities
-            intent = IntentParser.parse(query)
+            prompt = f"""
+Analyze this healthcare query and provide structured interpretation:
+
+Query: "{query}"
+
+You are an AI assistant that interprets healthcare search queries in French and English. 
+Analyze the query and return a JSON object with this structure:
+
+{{
+    "intent": "practitioner" or "organization",
+    "confidence": 0.0-1.0,
+    "extracted_entities": {{
+        "specialty": "medical specialty if mentioned",
+        "entity_type": ["hospital", "pharmacy", "clinic", etc.],
+        "location": {{
+            "city": "city name",
+            "postal_code": "postal code if mentioned",
+            "arrondissement": "Paris arrondissement if mentioned"
+        }},
+        "practitioner_name": "specific name if mentioned",
+        "organization_name": "specific name if mentioned"
+    }},
+    "search_strategy": {{
+        "primary": "practitioner" or "organization",
+        "fallback": null or "practitioner"/"organization"
+    }},
+    "reasoning": "Brief explanation of interpretation"
+}}
+
+Examples:
+- "je cherche un cardiologue" -> practitioner intent
+- "find hospitals" -> organization intent
+- "pharmacie à Paris" -> organization intent
+- "Dr. Smith" -> practitioner intent
+
+Rules:
+- Queries about specific medical specialties (cardiologue, dentiste, etc.) = practitioner
+- Queries about facilities (hôpital, pharmacie, clinique, etc.) = organization
+- Convert Paris arrondissements (16e -> 75016)
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1
+            )
             
-            print(f"[DEBUG] Parsed intent: {intent}")  # Debug log
+            import json
+            ai_result = json.loads(response.choices[0].message.content)
+            print(f"[DEBUG] AI interpretation: {ai_result}")
+            return ai_result
+            
+        except Exception as e:
+            print(f"[ERROR] AI interpretation failed: {e}")
+            # Fallback to original intent parser
+            return IntentParser.parse(query)
+
+    def process_query(self, query: str, context: Dict[str, Any] = None) -> Dict:
+        """Enhanced query processing with AI interpretation"""
+        try:
+            # Use AI interpretation first, fallback to original parser
+            try:
+                intent = self.ai_interpret_query(query)
+                print(f"[DEBUG] AI interpreted intent: {intent}")
+            except:
+                intent = IntentParser.parse(query)
+                print(f"[DEBUG] Fallback to original intent: {intent}")
+            
+            # Route based on AI interpretation
+            if intent.get("intent") == "practitioner" or intent.get("type") == "find_practitioner":
+                prac_mcp = self.mcp_registry.get_mcp("practitioner")
+                if prac_mcp:
+                    result = prac_mcp.process_query(query, context)
+                    natural_response = self.generate_natural_response(query, result)
+                    return {
+                        "message": natural_response,
+                        "natural_response": natural_response,
+                        "structured_data": result,
+                        "success": True,
+                        "ai_interpretation": intent
+                    }
+            
+            elif intent.get("intent") == "organization" or intent.get("type") == "find_organization":
+                org_mcp = self.mcp_registry.get_mcp("organization")
+                if org_mcp:
+                    result = org_mcp.process_query(query, context)
+                    natural_response = self.generate_natural_response(query, result)
+                    return {
+                        "message": natural_response,
+                        "natural_response": natural_response,
+                        "structured_data": result,
+                        "success": True,
+                        "ai_interpretation": intent
+                    }
+            
+            # Fallback for unrecognized queries - try organization first
+            print(f"[DEBUG] Fallback routing for query: {query}")
+            org_mcp = self.mcp_registry.get_mcp("organization")
+            if org_mcp:
+                result = org_mcp.process_query(query, context)
+                if result.get("success") and result.get("data", {}).get("results"):
+                    natural_response = self.generate_natural_response(query, result)
+                    return {
+                        "message": natural_response,
+                        "natural_response": natural_response,
+                        "structured_data": result,
+                        "success": True,
+                        "ai_interpretation": intent
+                    }
+            
+            # Final fallback
+            fallback_result = {"message": "Could not understand query type", "data": intent, "success": False}
+            natural_response = self.generate_natural_response(query, fallback_result)
+            return {
+                "message": natural_response,
+                "natural_response": natural_response,
+                "structured_data": fallback_result,
+                "success": False,
+                "ai_interpretation": intent
+            }
 
             # Simple routing based on intent type
             if intent["type"] == "find_organization":

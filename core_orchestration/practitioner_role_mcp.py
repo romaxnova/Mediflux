@@ -84,10 +84,14 @@ SPECIALTY_MAP = {
     # Other health professionals
     "infirmier": "23",  # Assuming code for nurses
     "nurse": "23",
-    "kinésithérapeute": "40",  # Assuming code for physiotherapists
+    "kinésithérapeute": "40",  # Physiotherapist code
+    "kinesitherapeute": "40",
+    "kiné": "40",  # French abbreviation for physiotherapist
+    "kine": "40",
     "physiotherapist": "40",
-    "osteopath": "50",  # Assuming code for osteopaths
+    "osteopath": "50",  # Osteopath code
     "ostéopathe": "50",
+    "osteopathe": "50",
 }
 
 # English to French specialty translations
@@ -193,12 +197,40 @@ class PractitionerRoleMCP(BaseMCP):
     def process_query(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process a natural language query to search for practitioners"""
         try:
-            # Parse query parameters
-            params, count = self._parse_query_params(query)
+            # Check if we have context parameters from smart orchestrator
+            if context and isinstance(context, dict):
+                print(f"[DEBUG] Using context parameters: {context}")
+                params = {}
+                
+                # Handle specialty parameter - map to proper code
+                if 'specialty' in context:
+                    specialty_name = context['specialty'].lower()
+                    if specialty_name in SPECIALTY_MAP:
+                        params['role'] = SPECIALTY_MAP[specialty_name]
+                        print(f"[DEBUG] Mapped specialty '{specialty_name}' to role code '{params['role']}'")
+                    else:
+                        print(f"[DEBUG] Specialty '{specialty_name}' not found in SPECIALTY_MAP")
+                        params['role'] = '60'  # Default to general practitioner
+                
+                # Handle city parameter
+                if 'address-city' in context:
+                    city = context['address-city']
+                    # For now, we'll filter locally by city since the API doesn't support city filtering
+                    params['local_city_filter'] = city
+                    print(f"[DEBUG] Will filter locally by city: {city}")
+                
+                # Handle postal code
+                if 'address-postalcode' in context:
+                    params['address-postalcode'] = context['address-postalcode']
+                
+                count = context.get('_count', 10)
+            else:
+                # Parse query parameters from natural language
+                params, count = self._parse_query_params(query)
             
             # Separate API parameters from local filtering parameters
             api_params = {k: v for k, v in params.items() if k in ['role', 'specialty']}
-            local_filter_params = {k: v for k, v in params.items() if k in ['address-postalcode']}
+            local_filter_params = {k: v for k, v in params.items() if k in ['address-postalcode', 'local_city_filter']}
             
             # Call backend API with correct parameters
             endpoint = "http://localhost:8000/api/practitionerrole/search"

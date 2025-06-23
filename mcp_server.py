@@ -118,6 +118,62 @@ def mcp_practitioner_role_context(req: QueryRequest):
     prac_mcp = orchestrator.mcp_registry.get_mcp("practitioner")
     return {"result": prac_mcp.process_query(req.query)}
 
+@app.post("/mcp/execute")
+async def mcp_execute(request: Request):
+    """Enhanced MCP execution with AI-powered orchestration"""
+    body = await request.json()
+    query = body.get("prompt") or body.get("query") or ""
+
+    try:
+        print(f"[DEBUG] Enhanced MCP processing query: {query}")
+        
+        # Use the enhanced orchestrator with AI interpretation
+        result = orchestrator.process_query(query)
+        
+        print(f"[DEBUG] Orchestrator result: {result.get('success', False)}")
+        
+        # Format response to match expected structure
+        response = {
+            "choices": [
+                {
+                    "message": {
+                        "content": result.get("message", "No results found")
+                    },
+                    "data": {
+                        "natural_response": result.get("natural_response", result.get("message", "No results found")),
+                        "structured_data": result.get("structured_data", {"success": False, "data": {"results": []}}),
+                        "success": result.get("success", False)
+                    }
+                }
+            ]
+        }
+        
+        return response
+        
+    except Exception as e:
+        print(f"[ERROR] MCP execute failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": f"API error: {str(e)}"
+                    },
+                    "data": {
+                        "natural_response": f"API error: {str(e)}",
+                        "structured_data": {
+                            "success": False,
+                            "message": f"API error: {str(e)}",
+                            "data": {"results": []}
+                        },
+                        "success": False
+                    }
+                }
+            ]
+        }
+
 # Simple role code mapping (from our testing)
 ROLE_CODES = {
     # General practitioners
@@ -580,27 +636,21 @@ IMPORTANT: Be honest about limitations and explain geographic filtering when loc
 
 @app.post("/mcp/execute")
 async def mcp_execute(request: Request):
-    """Smart MCP execution with intelligent query routing (practitioners vs organizations)"""
+    """AI-Powered Smart MCP execution with intelligent query interpretation"""
     body = await request.json()
     query = body.get("prompt") or body.get("query") or ""
 
     try:
-        print(f"[DEBUG] Processing query: {query}")
+        print(f"[DEBUG] Processing query with AI: {query}")
         
-        # Detect query type - organization vs practitioner
-        query_lower = query.lower()
-        org_keywords = [
-            "hospital", "hospitals", "hôpital", "hôpitaux", 
-            "clinic", "clinics", "clinique", "cliniques",
-            "medical center", "medical centres", "centre médical", "centres médicaux",
-            "organization", "organizations", "organisation", "organisations",
-            "cabinet", "cabinets", "établissement", "établissements",
-            "structure", "structures", "institution", "institutions"
-        ]
+        # Import the smart orchestrator
+        from core_orchestration.smart_orchestrator import SmartHealthcareOrchestrator
         
-        is_organization_query = any(keyword in query_lower for keyword in org_keywords)
+        # Use AI-powered orchestration
+        orchestrator = SmartHealthcareOrchestrator()
+        result = orchestrator.process_query(query)
         
-        if is_organization_query:
+        if result.get("success"):
             print(f"[DEBUG] Detected organization query, routing to OrganizationMCP")
             # Route to organization search
             org_mcp = orchestrator.mcp_registry.get_mcp("organization")

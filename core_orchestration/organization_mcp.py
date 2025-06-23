@@ -57,14 +57,25 @@ def parse_organization_query(query: str):
             params["address-postalcode"] = postal_code
     
     # Extract organization name/type (after removing action words and postal codes)
-    # Remove common action words and prepositions
-    clean_query = re.sub(r'\b(?:find|show|get|list|in|from|at|near|of|the|a|an|organizations?|hospitals?|clinics?|cabinets?)\b', '', query, flags=re.IGNORECASE)
+    # Remove common action words and prepositions, but keep medical terms
+    clean_query = re.sub(r'\b(?:i|need|can|you|suggest|me|find|show|get|list|in|from|at|near|of|the|a|an)\b', '', query, flags=re.IGNORECASE)
     clean_query = re.sub(r'\b\d+\b', '', clean_query)  # Remove any remaining numbers
     clean_query = re.sub(r'\s+', ' ', clean_query).strip()  # Clean up whitespace
     
+    # Keep only meaningful medical/organization terms
+    medical_terms = ['hospital', 'hôpital', 'clinic', 'clinique', 'cabinet', 'centre', 'center', 'médical', 'medical', 'dentaire', 'dental']
+    clean_words = []
+    for word in clean_query.split():
+        # Keep medical terms or words longer than 3 characters that aren't cities
+        if (any(term in word.lower() for term in medical_terms) or 
+            (len(word) > 3 and word.lower() not in ['paris', 'lyon', 'marseille', 'nice', 'toulouse', 'nantes', 'bordeaux'])):
+            clean_words.append(word)
+    
+    final_query = ' '.join(clean_words)
+    
     # Only add name parameter if we have a meaningful search term left
-    if clean_query and len(clean_query) > 2:  # Avoid single letters or very short terms
-        params["name"] = clean_query
+    if final_query and len(final_query) > 2:
+        params["name"] = final_query
     
     # Address/city extraction
     city_match = re.search(r'\bin\s+([a-zA-Z\s\-\']+)(?:\s+\d{5})?$', query, re.IGNORECASE)
