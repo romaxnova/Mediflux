@@ -2,17 +2,38 @@ import React, { useState } from 'react';
 import './App.css';
 
 interface Practitioner {
-  name: string;
-  title: string;
-  specialty: string;
-  specialty_label: string;
-  practice_type: string;
-  fonction_label: string;
-  genre_activite_label: string;
-  organization_ref: string | null;
-  smart_card: any;
-  active: boolean;
   id: string;
+  name: string;
+  specialty: string;
+  specialty_label?: string;
+  profession_code: string;
+  active: boolean;
+  resource_type: string;
+  address?: {
+    organization_name?: string;
+    organization_address?: {
+      text?: string;
+      city?: string;
+      postalCode?: string;
+      line?: string;
+      full_address?: string;
+    };
+    full_location?: string;
+  };
+  organization_name?: string;
+  organization_type?: string;
+  practitioner_ref: string;
+  organization_ref: string;
+  rpps_id?: string;
+  contact?: {
+    phone?: string;
+    email?: string;
+    fax?: string;
+  };
+  search_metadata?: {
+    query_city?: string;
+    profession_mapped?: string;
+  };
 }
 
 interface Organization {
@@ -66,18 +87,59 @@ function App() {
     setQueryType('');
     
     try {
+      console.log('=== FRONTEND REQUEST ===');
+      console.log('Sending query:', prompt);
+      console.log('=======================');
+      
       const res = await fetch('http://localhost:9000/mcp/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: prompt }),
       });
       const data: ApiResponse = await res.json();
-      console.log('Backend response:', data); // Debug log
+      
+      console.log('=== FRONTEND RESPONSE ===');
+      console.log('Status:', res.status);
+      console.log('Backend response:', data);
+      console.log('Full data structure:', JSON.stringify(data, null, 2));
+      console.log('========================');
+      
+      // Add detailed logging for debugging practitioner search issues
+      if (data.choices && data.choices[0] && data.choices[0].data && data.choices[0].data.structured_data) {
+        const results = data.choices[0].data.structured_data.data?.results || [];
+        console.log('=== FRONTEND DEBUG ===');
+        console.log('Number of results:', results.length);
+        console.log('Query type:', data.choices[0].data.structured_data.data?.query_type);
+        console.log('Success:', data.choices[0].data.structured_data.success);
+        console.log('Message:', data.choices[0].data.structured_data.message);
+        
+        if (results.length > 0) {
+          console.log('SAMPLE RESULT ANALYSIS:');
+          const sample = results[0];
+          console.log('Sample result keys:', Object.keys(sample));
+          console.log('Sample name:', sample.name);
+          console.log('Sample specialty:', sample.specialty);
+          console.log('Sample active:', sample.active);
+          console.log('Sample resource_type:', sample.resource_type);
+          console.log('Sample address:', sample.address);
+          
+          console.log('ALL RESULTS OVERVIEW:');
+          results.forEach((result, index) => {
+            console.log(`Result ${index + 1}: ${result.name || 'NO_NAME'} - ${result.specialty || 'NO_SPECIALTY'} - Active: ${result.active} - Type: ${result.resource_type || 'NO_TYPE'}`);
+          });
+        } else {
+          console.log('NO RESULTS RETURNED');
+        }
+        console.log('=== END DEBUG ===');
+      }
       
       if (data.choices && data.choices[0]) {
         const choice = data.choices[0];
         const content = choice.message.content;
         const responseData = choice.data;
+        
+        console.log('Choice data:', choice);
+        console.log('Response data:', responseData);
         
         // Set the natural language response
         if (responseData?.natural_response) {
@@ -95,12 +157,15 @@ function App() {
           setQueryType(detectedQueryType || '');
           console.log('Query type detected:', detectedQueryType, 'State:', queryType); // Debug log
           
-          // Check if results are organizations or practitioners based on query type
-          // queryType is used for debugging and future enhancements
-          if (detectedQueryType === 'organization_search' || (results.length > 0 && 'address' in results[0])) {
-            setOrganizations(results as Organization[]);
-          } else {
-            setPractitioners(results as Practitioner[]);
+          // Check if results are organizations or practitioners based on resource_type
+          const practitionerResults = results.filter(result => result.resource_type === 'practitioner');
+          const organizationResults = results.filter(result => result.resource_type === 'organization');
+          
+          if (practitionerResults.length > 0) {
+            setPractitioners(practitionerResults as Practitioner[]);
+          }
+          if (organizationResults.length > 0) {
+            setOrganizations(organizationResults as Organization[]);
           }
         }
       } else if (data.error) {
@@ -145,43 +210,51 @@ function App() {
               <div key={practitioner.id || index} className="practitioner-card">
                 <div className="practitioner-header">
                   <h3 className="practitioner-name">{practitioner.name}</h3>
-                  {practitioner.title && (
-                    <span className="practitioner-title">({practitioner.title})</span>
+                  {practitioner.profession_code && (
+                    <span className="practitioner-code">ID: {practitioner.profession_code}</span>
                   )}
                 </div>
                 
                 <div className="practitioner-details">
                   <div className="detail-row">
-                    <span className="detail-label">Specialty:</span>
-                    <span className="detail-value">{practitioner.specialty_label || practitioner.specialty}</span>
+                    <span className="detail-label">Spécialité:</span>
+                    <span className="detail-value specialty">{practitioner.specialty}</span>
                   </div>
                   
-                  <div className="detail-row">
-                    <span className="detail-label">Practice Type:</span>
-                    <span className="detail-value">{practitioner.practice_type || 'Not specified'}</span>
-                  </div>
-                  
-                  <div className="detail-row">
-                    <span className="detail-label">Professional Function:</span>
-                    <span className="detail-value">{practitioner.fonction_label || 'Not specified'}</span>
-                  </div>
-                  
-                  <div className="detail-row">
-                    <span className="detail-label">Activity Type:</span>
-                    <span className="detail-value">{practitioner.genre_activite_label || 'Not specified'}</span>
-                  </div>
-                  
-                  {practitioner.organization_ref && (
+                  {practitioner.address?.organization_name && (
                     <div className="detail-row">
-                      <span className="detail-label">Organization:</span>
-                      <span className="detail-value">Affiliated with healthcare organization</span>
+                      <span className="detail-label">Organisation:</span>
+                      <span className="detail-value">{practitioner.address.organization_name}</span>
+                    </div>
+                  )}
+                  
+                  {practitioner.address?.organization_address?.city && (
+                    <div className="detail-row">
+                      <span className="detail-label">Localisation:</span>
+                      <span className="detail-value">
+                        {practitioner.address.organization_address.city} {practitioner.address.organization_address.postalCode}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {practitioner.address?.full_location && practitioner.address.full_location !== 'Localisation non disponible' && (
+                    <div className="detail-row">
+                      <span className="detail-label">Adresse complète:</span>
+                      <span className="detail-value">{practitioner.address.full_location}</span>
+                    </div>
+                  )}
+                  
+                  {practitioner.rpps_id && (
+                    <div className="detail-row">
+                      <span className="detail-label">RPPS:</span>
+                      <span className="detail-value">{practitioner.rpps_id}</span>
                     </div>
                   )}
                   
                   <div className="detail-row">
-                    <span className="detail-label">Status:</span>
+                    <span className="detail-label">Statut:</span>
                     <span className={`detail-value status ${practitioner.active ? 'active' : 'inactive'}`}>
-                      {practitioner.active ? 'Active' : 'Inactive'}
+                      {practitioner.active ? 'Actif' : 'Inactif'}
                     </span>
                   </div>
                 </div>

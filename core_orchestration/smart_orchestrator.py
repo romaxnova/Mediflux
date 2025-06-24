@@ -6,16 +6,12 @@ Uses AI to interpret queries and orchestrate intelligent searches
 import asyncio
 from typing import Dict, List, Any, Optional
 from .ai_query_interpreter import AIQueryInterpreter
-from .organization_mcp import OrganizationMCP
-from .practitioner_role_mcp import PractitionerRoleMCP
 import requests
 import os
 
 class SmartHealthcareOrchestrator:
     def __init__(self):
         self.ai_interpreter = AIQueryInterpreter()
-        self.organization_mcp = OrganizationMCP()
-        self.practitioner_mcp = PractitionerRoleMCP()
         self.api_key = os.getenv("ANNUAIRE_SANTE_API_KEY", "b2c9aa48-53c0-4d1b-83f3-7b48a3e26740")
     
     def process_query(self, user_query: str) -> Dict[str, Any]:
@@ -160,20 +156,26 @@ class SmartHealthcareOrchestrator:
             return {"success": False, "results": [], "error": str(e)}
     
     def _search_practitioners_by_name(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Search for practitioners by name using the Practitioner resource"""
+        """Search for practitioners by name using the PractitionerRole resource with extensions"""
         if not any(params.values()):
             return {"success": False, "results": [], "error": "No valid practitioner name search parameters"}
         
-        # Build search parameters for Practitioner resource
-        clean_params = {"_count": "20"}  # More results for name searches
-        
-        # Handle name parameters
-        if params.get("practitioner_name"):
-            clean_params["name"] = params["practitioner_name"]
+        # Extract the search name
+        search_name = None
+        if params.get("name"):
+            search_name = params["name"]
+        elif params.get("practitioner_name"):
+            search_name = params["practitioner_name"]
         elif params.get("family"):
-            clean_params["family"] = params["family"]
+            search_name = params["family"]
         elif params.get("given"):
-            clean_params["given"] = params["given"]
+            search_name = params["given"]
+        
+        if not search_name:
+            return {"success": False, "results": [], "error": "No name parameter provided"}
+        
+        # Use PractitionerRole endpoint to get name extensions
+        clean_params = {"_count": "50"}  # More results for name filtering
         
         headers = {
             'ESANTE-API-KEY': self.api_key,
@@ -181,15 +183,17 @@ class SmartHealthcareOrchestrator:
         }
         
         try:
-            print(f"[SMART_DEBUG] Practitioner name search with params: {clean_params}")
+            print(f"[SMART_DEBUG] Practitioner name search using PractitionerRole with filter: '{search_name}'")
             response = requests.get(
-                "https://gateway.api.esante.gouv.fr/fhir/Practitioner",
+                "https://gateway.api.esante.gouv.fr/fhir/PractitionerRole",
                 headers=headers,
                 params=clean_params,
                 timeout=30
             )
             
-            print(f"[SMART_DEBUG] Practitioner name search response: {response.status_code}")
+            print(f"[SMART_DEBUG] PractitionerRole response: {response.status_code}")
+            if response.text:
+                print(f"[SMART_DEBUG] Response size: {len(response.text)} characters")
             
             if response.status_code != 200:
                 error_text = response.text[:200] if response.text else "No error details"
@@ -197,53 +201,127 @@ class SmartHealthcareOrchestrator:
                 return {"success": False, "results": [], "error": f"API error: {response.status_code}"}
             
             bundle = response.json()
-            practitioners = bundle.get("entry", [])
+            practitioner_roles = bundle.get("entry", [])
             
-            # Format results
+            print(f"[SMART_DEBUG] Got {len(practitioner_roles)} total practitioner roles from API")
+            
+            # Debug: Log first few entries to see the actual structure
+            if practitioner_roles:
+                print(f"[SMART_DEBUG] Sample entry structure:")
+                sample_entry = practitioner_roles[0].get("resource", {})
+                print(f"[SMART_DEBUG] Sample ID: {sample_entry.get('id', 'N/A')}")
+                print(f"[SMART_DEBUG] Sample extensions count: {len(sample_entry.get('extension', []))}")
+                print(f"[SMART_DEBUG] Sample practitioner ref: {sample_entry.get('practitioner', {})}")
+                
+                # Debug the extensions to see what's actually there
+                for i, ext in enumerate(sample_entry.get("extension", [])[:3]):  # First 3 extensions
+                    print(f"[SMART_DEBUG] Extension {i}: URL={ext.get('url', 'N/A')}, Keys={list(ext.keys())}")
+            
+            # Filter results by name locally
+            search_name_lower = search_name.lower()
             results = []
-            for entry in practitioners:
-                practitioner = entry.get("resource", {})
+            
+            for entry in practitioner_roles:
+                prac_role = entry.get("resource", {})
                 
-                # Extract name information
-                names = practitioner.get("name", [])
-                full_name = "Professionnel de santé"
-                if names:
-                    name_obj = names[0]
-                    family = name_obj.get("family", "")
-                    given_names = name_obj.get("given", [])
-                    prefix = name_obj.get("prefix", [])
-                    
-                    name_parts = []
-                    if prefix:
-                        name_parts.extend(prefix)
-                    if given_names:
-                        name_parts.extend(given_names)
-                    if family:
-                        name_parts.append(family)
-                    
-                    full_name = " ".join(name_parts) if name_parts else "Professionnel de santé"
+                print(f"[SMART_DEBUG] Processing practitioner role ID: {prac_role.get('id', 'unknown')}")
                 
-                # Extract identifiers
-                identifiers = practitioner.get("identifier", [])
-                rpps_id = ""
-                for identifier in identifiers:
-                    if "rpps" in identifier.get("system", "").lower():
-                        rpps_id = identifier.get("value", "")
-                        break
+                # Extract name from extensions
+                full_name = None
+                found_extension = False
+                for ext in prac_role.get("extension", []):
+                    found_extension = True
+                    print(f"[SMART_DEBUG] Checking extension URL: {ext.get('url', 'N/A')}")
+                    if "PractitionerRole-Name" in ext.get("url", ""):
+                        vh = ext.get("valueHumanName", {})
+                        family = vh.get("family", "")
+                        given = vh.get("given", [])
+                        
+                        print(f"[SMART_DEBUG] Found name extension - Family: {family}, Given: {given}")
+                        
+                        # Construct full name
+                        name_parts = []
+                        if given:
+                            name_parts.extend(given)
+                        if family:
+                            name_parts.append(family)
+                        
+                        if name_parts:
+                            full_name = " ".join(name_parts)
+                            break
+                
+                if not found_extension:
+                    print(f"[SMART_DEBUG] No extensions found for this entry")
+                
+                # Skip if no name found
+                if not full_name:
+                    print(f"[SMART_DEBUG] No full name found, skipping this entry")
+                    continue
+                
+                print(f"[SMART_DEBUG] Found name: '{full_name}', checking against search: '{search_name_lower}'")
+                
+                # Filter by search name
+                if search_name_lower not in full_name.lower():
+                    print(f"[SMART_DEBUG] Name doesn't match, skipping")
+                    continue
+                
+                print(f"[SMART_DEBUG] Name matches! Processing this entry...")
+                
+                # Extract practitioner reference and other details
+                practitioner_ref = prac_role.get("practitioner", {})
+                practitioner_id = practitioner_ref.get("reference", "").split("/")[-1] if practitioner_ref.get("reference") else ""
+                
+                # Extract profession info
+                specialty_display = "Professionnel de santé"
+                profession_code = "Unknown"
+                
+                code_info = prac_role.get("code", [])
+                if code_info:
+                    for code_item in code_info:
+                        coding_list = code_item.get("coding", [])
+                        for coding in coding_list:
+                            system = coding.get("system", "")
+                            if "TRE-G15-ProfessionSante" in system:
+                                profession_code = coding.get("code", "Unknown")
+                                code_map = {
+                                    "60": "Médecin généraliste",
+                                    "40": "Kinésithérapeute", 
+                                    "50": "Ostéopathe",
+                                    "86": "Dentiste",
+                                    "31": "Sage-femme",
+                                    "96": "Pharmacien",
+                                    "23": "Infirmier",
+                                    "54": "Chiropracteur"
+                                }
+                                specialty_display = code_map.get(profession_code, f"Profession {profession_code}")
+                                break
+                
+                # Get organization details
+                organization_ref = prac_role.get("organization", {}).get("reference", "") if prac_role.get("organization") else ""
+                organization_details = {"name": "Organisation inconnue", "address": {}}
+                if organization_ref:
+                    organization_details = self._fetch_organization_details(organization_ref)
                 
                 results.append({
-                    "id": practitioner.get("id", ""),
+                    "id": prac_role.get("id", ""),
                     "name": full_name,
-                    "specialty": "À déterminer",  # Would need PractitionerRole lookup
-                    "active": practitioner.get("active", True),
+                    "specialty": specialty_display,
+                    "profession_code": profession_code,
+                    "active": prac_role.get("active", True),
                     "resource_type": "practitioner",
-                    "rpps_id": rpps_id,
-                    "address": {"note": "Recherche par nom - localisation via organisation"},
-                    "practitioner_ref": f"Practitioner/{practitioner.get('id', '')}",
+                    "rpps_id": practitioner_id,
+                    "address": {
+                        "organization_name": organization_details["name"],
+                        "organization_address": organization_details["address"],
+                        "full_location": organization_details["address"].get("full_address", "Localisation non disponible")
+                    },
+                    "practitioner_ref": practitioner_ref.get("reference", ""),
+                    "organization_ref": organization_ref,
+                    "organization_name": organization_details["name"],
                     "search_type": "name"
                 })
             
-            print(f"[SMART_DEBUG] Found {len(results)} practitioners by name")
+            print(f"[SMART_DEBUG] Found {len(results)} practitioners matching name '{search_name}'")
             
             return {
                 "success": True,
@@ -262,6 +340,14 @@ class SmartHealthcareOrchestrator:
         if not any(params.values()):  # No valid parameters
             return {"success": False, "results": [], "error": "No valid practitioner search parameters"}
         
+        # Check if this is a name-based search and route accordingly
+        name_params = ["practitioner_name", "family", "given", "name"]
+        is_name_search = any(params.get(param) for param in name_params)
+        
+        if is_name_search:
+            print(f"[SMART_DEBUG] Detected name-based search, routing to _search_practitioners_by_name")
+            return self._search_practitioners_by_name(params)
+        
         # Map specialty names to profession codes (based on FHIR documentation)
         profession_codes = {
             "kiné": "40", "kine": "40", "kinésithérapeute": "40", "physiotherapist": "40",
@@ -272,7 +358,8 @@ class SmartHealthcareOrchestrator:
             "dentiste": "86", "dentist": "86",
             "sage-femme": "31", "midwife": "31",
             "pharmacien": "96", "pharmacist": "96",
-            "infirmier": "23", "nurse": "23"
+            "infirmier": "23", "nurse": "23",
+            "chiropracteur": "54", "chiropractor": "54"
         }
         
         # Build search parameters according to FHIR documentation
@@ -361,32 +448,44 @@ class SmartHealthcareOrchestrator:
                                     "86": "Dentiste",
                                     "31": "Sage-femme",
                                     "96": "Pharmacien",
-                                    "23": "Infirmier"
+                                    "23": "Infirmier",
+                                    "54": "Chiropracteur"
                                 }
                                 specialty_display = code_map.get(profession_code, f"Profession {profession_code}")
                                 break
                 
-                # Extract location/organization info safely
-                location_info = prac_role.get("location")
+                # Extract organization info safely
                 organization_info = prac_role.get("organization")
+                organization_ref = organization_info.get("reference", "") if organization_info else ""
                 
-                address_info = {}
-                if location_info:
-                    address_info["location"] = location_info.get("display", location_info.get("reference", ""))
-                if organization_info:
-                    address_info["organization"] = organization_info.get("display", organization_info.get("reference", ""))
+                # Fetch detailed practitioner information
+                practitioner_details = self._fetch_practitioner_details(practitioner_ref.get("reference", ""))
                 
-                # Create result entry
+                # Fetch organization details if available
+                organization_details = {"name": "Organisation inconnue", "address": {}}
+                if organization_ref:
+                    organization_details = self._fetch_organization_details(organization_ref)
+                
+                # Create comprehensive address info
+                address_info = {
+                    "organization_name": organization_details["name"],
+                    "organization_address": organization_details["address"],
+                    "full_location": organization_details["address"].get("full_address", "Localisation non disponible")
+                }
+                
+                # Create result entry with enriched data
                 result_entry = {
                     "id": prac_role.get("id", ""),
-                    "name": practitioner_display,
+                    "name": practitioner_details["name"],
                     "specialty": specialty_display,
                     "profession_code": profession_code,
                     "active": prac_role.get("active", True),
                     "resource_type": "practitioner",
                     "address": address_info,
                     "practitioner_ref": practitioner_ref.get("reference", ""),
-                    "organization_ref": organization_info.get("reference", "") if organization_info else ""
+                    "organization_ref": organization_ref,
+                    "rpps_id": practitioner_details["rpps_id"],
+                    "organization_name": organization_details["name"]
                 }
                 
                 # Add result to list (no city filtering for now due to API limitations)
@@ -427,3 +526,110 @@ class SmartHealthcareOrchestrator:
             "ai_interpretation": interpretation,
             "message": f"Found {len(results)} {entity_type} matching your criteria"
         }
+    
+    def _fetch_practitioner_details(self, practitioner_ref: str) -> Dict[str, Any]:
+        """Fetch detailed practitioner information using the Practitioner API"""
+        if not practitioner_ref or not practitioner_ref.startswith("Practitioner/"):
+            return {"name": "Professionnel de santé", "rpps_id": ""}
+        
+        practitioner_id = practitioner_ref.split("/")[-1]
+        headers = {
+            'ESANTE-API-KEY': self.api_key,
+            'Accept': 'application/json'
+        }
+        
+        try:
+            response = requests.get(
+                f"https://gateway.api.esante.gouv.fr/fhir/Practitioner/{practitioner_id}",
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                practitioner = response.json()
+                
+                # Extract name information
+                names = practitioner.get("name", [])
+                full_name = "Professionnel de santé"
+                
+                if names:
+                    name_obj = names[0]
+                    family = name_obj.get("family", "")
+                    given_names = name_obj.get("given", [])
+                    prefix = name_obj.get("prefix", [])
+                    
+                    name_parts = []
+                    if given_names:
+                        name_parts.extend(given_names)
+                    if family:
+                        name_parts.append(family.upper())
+                    if prefix:
+                        # Add prefix at the beginning for titles like Dr., etc.
+                        name_parts = list(prefix) + name_parts
+                    
+                    if name_parts:
+                        full_name = " ".join(name_parts)
+                    else:
+                        # Fallback to just family name if that's all we have
+                        full_name = family.upper() if family else "Professionnel de santé"
+                
+                # Extract RPPS ID
+                identifiers = practitioner.get("identifier", [])
+                rpps_id = ""
+                for identifier in identifiers:
+                    if "rpps" in identifier.get("system", "").lower():
+                        rpps_id = identifier.get("value", "")
+                        break
+                
+                return {"name": full_name, "rpps_id": rpps_id}
+                
+        except Exception as e:
+            print(f"[SMART_DEBUG] Failed to fetch practitioner details for {practitioner_id}: {e}")
+        
+        return {"name": f"Professionnel de santé {practitioner_id}", "rpps_id": ""}
+    
+    def _fetch_organization_details(self, organization_ref: str) -> Dict[str, Any]:
+        """Fetch organization details using the Organization API"""
+        if not organization_ref or not organization_ref.startswith("Organization/"):
+            return {"name": "Organisation inconnue", "address": {}}
+        
+        organization_id = organization_ref.split("/")[-1]
+        headers = {
+            'ESANTE-API-KEY': self.api_key,
+            'Accept': 'application/json'
+        }
+        
+        try:
+            response = requests.get(
+                f"https://gateway.api.esante.gouv.fr/fhir/Organization/{organization_id}",
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                organization = response.json()
+                
+                org_name = organization.get("name", "Organisation inconnue")
+                
+                # Extract address information
+                addresses = organization.get("address", [])
+                address_info = {}
+                
+                if addresses:
+                    addr = addresses[0]
+                    address_lines = addr.get("line", [])
+                    clean_lines = [line for line in address_lines if line is not None]
+                    address_info = {
+                        "text": addr.get("text", ""),
+                        "city": addr.get("city", ""),
+                        "postalCode": addr.get("postalCode", ""),
+                        "line": " ".join(clean_lines),
+                        "full_address": f"{' '.join(clean_lines)}, {addr.get('postalCode', '')} {addr.get('city', '')}".strip()
+                    }
+                
+                return {"name": org_name, "address": address_info}
+                
+        except Exception as e:
+            print(f"[SMART_DEBUG] Failed to fetch organization details for {organization_id}: {e}")
+        
+        return {"name": f"Organisation {organization_id}", "address": {}}

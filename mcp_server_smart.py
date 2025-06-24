@@ -28,11 +28,14 @@ app.add_middleware(
 )
 
 # Load API configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
 ANNUAIRE_SANTE_API_KEY = os.getenv("ANNUAIRE_SANTE_API_KEY", "b2c9aa48-53c0-4d1b-83f3-7b48a3e26740")
 
-# Initialize OpenAI client
-openai_client = openai.OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.openai.com/v1/")
+# Initialize XAI (Grok) client
+openai_client = openai.OpenAI(
+    api_key=XAI_API_KEY, 
+    base_url="https://api.x.ai/v1"
+)
 
 class QueryRequest(BaseModel):
     query: str

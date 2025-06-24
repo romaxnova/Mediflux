@@ -11,7 +11,15 @@ import re
 
 class AIQueryInterpreter:
     def __init__(self):
-        self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Use XAI (Grok) instead of OpenAI
+        xai_api_key = os.getenv("XAI_API_KEY")
+        if not xai_api_key:
+            raise ValueError("XAI_API_KEY environment variable is required")
+        
+        self.openai_client = openai.OpenAI(
+            api_key=xai_api_key,
+            base_url="https://api.x.ai/v1"
+        )
         self.fhir_context = self._load_fhir_context()
     
     def _load_fhir_context(self) -> str:
@@ -102,7 +110,7 @@ Be intelligent about ambiguous queries - use context clues.
 
         try:
             response = await self.openai_client.chat.completions.acreate(
-                model="gpt-4",
+                model="grok-2-1212",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Query: {user_query}"}
@@ -132,6 +140,29 @@ Be intelligent about ambiguous queries - use context clues.
         """Fallback to simple rule-based interpretation if AI fails"""
         query_lower = query.lower()
         
+        # Check for practitioner names - improved patterns for complex names
+        name_patterns = [
+            # Pattern 1: "Dr/Doctor + name" 
+            r'\b(?:dr\.?|docteur|doctor)\s+([a-záéèêëïîôùûüÿç\-\s]+)\b',
+            # Pattern 2: "find + name" - extract everything after "find"
+            r'\bfind\s+([a-záéèêëïîôùûüÿç\-\s]+?)(?:\s+in\s|\s*$)',
+            # Pattern 3: "search + name"
+            r'\b(?:search|cherche|chercher)\s+([a-záéèêëïîôùûüÿç\-\s]+?)(?:\s+in\s|\s*$)',
+            # Pattern 4: General name pattern (2+ words with letters, hyphens, spaces)
+            r'\b([A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ][a-záéèêëïîôùûüÿç\-]+(?:\s+[A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ\-][a-záéèêëïîôùûüÿç\-]*)+)\b'
+        ]
+        
+        practitioner_name = None
+        for pattern in name_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                raw_name = match.group(1).strip()
+                # Clean up the name - remove common words
+                cleaned_name = re.sub(r'\b(find|search|cherche|chercher|dr|doctor|docteur)\b', '', raw_name, flags=re.IGNORECASE).strip()
+                if len(cleaned_name) > 3 and ' ' in cleaned_name:  # Must have space (first + last name)
+                    practitioner_name = cleaned_name.title()
+                    break
+        
         # Simple organization keywords
         org_keywords = ["hospital", "hôpital", "clinic", "clinique", "cabinet", "centre", "center"]
         is_org_query = any(keyword in query_lower for keyword in org_keywords)
@@ -144,34 +175,40 @@ Be intelligent about ambiguous queries - use context clues.
         city_match = re.search(r'\b(paris|lyon|marseille|nice|toulouse|bordeaux|nantes)\b', query_lower)
         city = city_match.group(1).title() if city_match else None
         
+        # Determine intent based on whether we found a name
+        intent = "practitioner" if practitioner_name or not is_org_query else "organization"
+        
         return {
-            "intent": "organization" if is_org_query else "practitioner",
-            "confidence": 0.6,
+            "intent": intent,
+            "confidence": 0.8 if practitioner_name else 0.6,
             "extracted_entities": {
-                "entity_type": ["organization"] if is_org_query else ["practitioner"],
+                "entity_type": ["practitioner"] if intent == "practitioner" else ["organization"],
+                "practitioner_name": practitioner_name,
                 "location": {
                     "city": city,
                     "postal_code": postal_code
                 }
             },
             "search_strategy": {
-                "primary": "organization" if is_org_query else "practitioner",
+                "primary": intent,
                 "fallback": None,
                 "parallel": False
             },
             "fhir_params": {
                 "organization": {
-                    "address-city": city if is_org_query else None,
-                    "address-postalcode": postal_code if is_org_query else None,
+                    "address-city": city if intent == "organization" else None,
+                    "address-postalcode": postal_code if intent == "organization" else None,
                     "_count": "10"
                 },
                 "practitioner": {
-                    "address-city": city if not is_org_query else None,
-                    "address-postalcode": postal_code if not is_org_query else None,
+                    "practitioner_name": practitioner_name,
+                    "name": practitioner_name,
+                    "address-city": city if intent == "practitioner" else None,
+                    "address-postalcode": postal_code if intent == "practitioner" else None,
                     "_count": "10"
                 }
             },
-            "reasoning": "Fallback rule-based interpretation"
+            "reasoning": f"Fallback rule-based interpretation - detected {'name search for ' + practitioner_name if practitioner_name else 'general query'}"
         }
     
     def synchronous_interpret_query(self, user_query: str) -> Dict[str, Any]:
@@ -211,6 +248,10 @@ Analyze the user query and return a JSON response with this structure:
         }},
         "practitioner": {{
             "specialty": "value or null",
+            "practitioner_name": "value or null",
+            "name": "value or null", 
+            "family": "value or null",
+            "given": "value or null",
             "address-city": "value or null",
             "address-postalcode": "value or null", 
             "_count": "number"
@@ -221,11 +262,12 @@ Analyze the user query and return a JSON response with this structure:
 
 Handle French language naturally. Convert Paris arrondissements to postal codes.
 Be intelligent about ambiguous queries - use context clues.
+For name searches, extract the practitioner name and put it in the practitioner_name field.
 """
 
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="grok-2-1212",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Query: {user_query}"}
