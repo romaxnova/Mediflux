@@ -38,7 +38,7 @@ ORGANIZATION SEARCH (https://gateway.api.esante.gouv.fr/fhir/Organization):
 
 PRACTITIONER SEARCHES:
 1. BY SPECIALTY (PractitionerRole): Use role parameter for profession-based searches
-   - role: Profession code (40=kinésithérapeute, 60=médecin, 86=dentiste, etc.)
+   - role: Profession code (40=kinésithérapeute, 60=médecin, 86=dentiste, 31=sage-femme, 96=pharmacien, 50=ostéopathe, 23=infirmier, 95=spécialiste)
    - address-postalcode: Postal code
    - address-city: City name (local filtering)
    - _count: Number of results
@@ -123,7 +123,24 @@ Be intelligent about ambiguous queries - use context clues.
             
             # Parse the JSON response
             try:
-                result = json.loads(result_text)
+                # Handle JSON wrapped in code blocks
+                content = result_text.strip()
+                if content.startswith('```json'):
+                    # Extract JSON from code block
+                    lines = content.split('\n')
+                    json_lines = []
+                    in_json = False
+                    for line in lines:
+                        if line.strip() == '```json':
+                            in_json = True
+                            continue
+                        elif line.strip() == '```' and in_json:
+                            break
+                        elif in_json:
+                            json_lines.append(line)
+                    content = '\n'.join(json_lines)
+                
+                result = json.loads(content)
                 print(f"[AI_DEBUG] Interpreted query: {user_query}")
                 print(f"[AI_DEBUG] Result: {result}")
                 return result
@@ -140,32 +157,26 @@ Be intelligent about ambiguous queries - use context clues.
         """Fallback to simple rule-based interpretation if AI fails"""
         query_lower = query.lower()
         
-        # Check for practitioner names - improved patterns for complex names
-        name_patterns = [
-            # Pattern 1: "Dr/Doctor + name" 
-            r'\b(?:dr\.?|docteur|doctor)\s+([a-záéèêëïîôùûüÿç\-\s]+)\b',
-            # Pattern 2: "find + name" - extract everything after "find"
-            r'\bfind\s+([a-záéèêëïîôùûüÿç\-\s]+?)(?:\s+in\s|\s*$)',
-            # Pattern 3: "search + name"
-            r'\b(?:search|cherche|chercher)\s+([a-záéèêëïîôùûüÿç\-\s]+?)(?:\s+in\s|\s*$)',
-            # Pattern 4: General name pattern (2+ words with letters, hyphens, spaces)
-            r'\b([A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ][a-záéèêëïîôùûüÿç\-]+(?:\s+[A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ\-][a-záéèêëïîôùûüÿç\-]*)+)\b'
-        ]
+        # Check for medical specialties FIRST (highest priority)
+        specialty_keywords = {
+            'kinésithérapeute': '40', 'kiné': '40', 'kine': '40', 'physiotherapist': '40',
+            'ostéopathe': '50', 'osteopath': '50', 'osteopathe': '50',
+            'dentiste': '86', 'dentist': '86', 'chirurgien-dentiste': '86',
+            'sage-femme': '31', 'midwife': '31', 'sages-femmes': '31',
+            'pharmacien': '96', 'pharmacist': '96', 'pharmacienne': '96',
+            'médecin': '60', 'medecin': '60', 'generaliste': '60', 'généraliste': '60',
+            'cardiologue': '95', 'cardiologist': '95',
+            'dermatologue': '95', 'dermatologist': '95',
+            'infirmier': '23', 'infirmière': '23', 'nurse': '23'
+        }
         
-        practitioner_name = None
-        for pattern in name_patterns:
-            match = re.search(pattern, query, re.IGNORECASE)
-            if match:
-                raw_name = match.group(1).strip()
-                # Clean up the name - remove common words
-                cleaned_name = re.sub(r'\b(find|search|cherche|chercher|dr|doctor|docteur)\b', '', raw_name, flags=re.IGNORECASE).strip()
-                if len(cleaned_name) > 3 and ' ' in cleaned_name:  # Must have space (first + last name)
-                    practitioner_name = cleaned_name.title()
-                    break
-        
-        # Simple organization keywords
-        org_keywords = ["hospital", "hôpital", "clinic", "clinique", "cabinet", "centre", "center"]
-        is_org_query = any(keyword in query_lower for keyword in org_keywords)
+        found_specialty = None
+        specialty_code = None
+        for keyword, code in specialty_keywords.items():
+            if keyword in query_lower:
+                found_specialty = keyword
+                specialty_code = code
+                break
         
         # Extract postal code
         postal_match = re.search(r'\b(\d{5})\b', query)
@@ -175,15 +186,116 @@ Be intelligent about ambiguous queries - use context clues.
         city_match = re.search(r'\b(paris|lyon|marseille|nice|toulouse|bordeaux|nantes)\b', query_lower)
         city = city_match.group(1).title() if city_match else None
         
-        # Determine intent based on whether we found a name
-        intent = "practitioner" if practitioner_name or not is_org_query else "organization"
+        # If we found a specialty, prioritize that over name detection
+        if found_specialty:
+            return {
+                "intent": "practitioner",
+                "confidence": 0.9,
+                "extracted_entities": {
+                    "entity_type": ["specialist"],
+                    "specialty": found_specialty,
+                    "location": {
+                        "city": city,
+                        "postal_code": postal_code
+                    }
+                },
+                "search_strategy": {
+                    "primary": "practitioner",
+                    "fallback": None,
+                    "parallel": False
+                },
+                "fhir_params": {
+                    "organization": {
+                        "address-city": None,
+                        "address-postalcode": None,
+                        "_count": None
+                    },
+                    "practitioner": {
+                        "specialty": specialty_code,
+                        "role": specialty_code,
+                        "practitioner_name": None,
+                        "name": None,
+                        "family": None,
+                        "given": None,
+                        "address-city": city,
+                        "address-postalcode": postal_code,
+                        "_count": "10"
+                    }
+                },
+                "reasoning": f"Fallback rule-based interpretation - detected specialty search for {found_specialty}"
+            }
+        
+        # Check for actual practitioner names (only if no specialty found)
+        name_patterns = [
+            # Pattern 1: "Dr/Doctor + name" 
+            r'\b(?:dr\.?|docteur|doctor)\s+([A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ][a-záéèêëïîôùûüÿç\-]+(?:\s+[A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ][a-záéèêëïîôùûüÿç\-]+)+)\b',
+            # Pattern 2: Proper name pattern (capitalized first+last, not specialty terms) - exclude command words at start
+            r'(?:find|search|cherche|show|get|pour|pour\s+un|looking\s+for)?\s*([A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ][a-záéèêëïîôùûüÿç\-]+\s+[A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ][A-ZÁÉÈÊËÏÎÔÙÛÜŸÇ\-]+)\b'
+        ]
+        
+        practitioner_name = None
+        for pattern in name_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                raw_name = match.group(1).strip()
+                # Exclude specialty keywords from being treated as names
+                if not any(spec in raw_name.lower() for spec in specialty_keywords.keys()):
+                    # Exclude common command words
+                    if not any(word in raw_name.lower() for word in ['find', 'search', 'cherche', 'show', 'get']):
+                        practitioner_name = raw_name.title()
+                        break
+        
+        if practitioner_name:
+            # Split name into family and given
+            name_parts = practitioner_name.split()
+            family_name = name_parts[-1] if name_parts else ""
+            given_name = " ".join(name_parts[:-1]) if len(name_parts) > 1 else ""
+            
+            return {
+                "intent": "practitioner",
+                "confidence": 0.8,
+                "extracted_entities": {
+                    "entity_type": ["practitioner"],
+                    "practitioner_name": practitioner_name,
+                    "location": {
+                        "city": city,
+                        "postal_code": postal_code
+                    }
+                },
+                "search_strategy": {
+                    "primary": "practitioner",
+                    "fallback": None,
+                    "parallel": False
+                },
+                "fhir_params": {
+                    "organization": {
+                        "address-city": None,
+                        "address-postalcode": None,
+                        "_count": None
+                    },
+                    "practitioner": {
+                        "practitioner_name": practitioner_name,
+                        "name": practitioner_name,
+                        "family": family_name,
+                        "given": given_name,
+                        "address-city": city,
+                        "address-postalcode": postal_code,
+                        "_count": "10"
+                    }
+                },
+                "reasoning": f"Fallback rule-based interpretation - detected name search for {practitioner_name}"
+            }
+        
+        # Default general search
+        org_keywords = ["hospital", "hôpital", "clinic", "clinique", "cabinet", "centre", "center"]
+        is_org_query = any(keyword in query_lower for keyword in org_keywords)
+        intent = "organization" if is_org_query else "practitioner"
         
         return {
             "intent": intent,
-            "confidence": 0.8 if practitioner_name else 0.6,
+            "confidence": 0.6,
             "extracted_entities": {
-                "entity_type": ["practitioner"] if intent == "practitioner" else ["organization"],
-                "practitioner_name": practitioner_name,
+                "entity_type": ["organization"] if intent == "organization" else ["practitioner"],
                 "location": {
                     "city": city,
                     "postal_code": postal_code
@@ -201,14 +313,12 @@ Be intelligent about ambiguous queries - use context clues.
                     "_count": "10"
                 },
                 "practitioner": {
-                    "practitioner_name": practitioner_name,
-                    "name": practitioner_name,
                     "address-city": city if intent == "practitioner" else None,
                     "address-postalcode": postal_code if intent == "practitioner" else None,
                     "_count": "10"
                 }
             },
-            "reasoning": f"Fallback rule-based interpretation - detected {'name search for ' + practitioner_name if practitioner_name else 'general query'}"
+            "reasoning": f"Fallback rule-based interpretation - general {intent} search"
         }
     
     def synchronous_interpret_query(self, user_query: str) -> Dict[str, Any]:
@@ -280,7 +390,24 @@ For name searches, extract the practitioner name and put it in the practitioner_
             
             # Parse the JSON response
             try:
-                result = json.loads(result_text)
+                # Handle JSON wrapped in code blocks
+                content = result_text.strip()
+                if content.startswith('```json'):
+                    # Extract JSON from code block
+                    lines = content.split('\n')
+                    json_lines = []
+                    in_json = False
+                    for line in lines:
+                        if line.strip() == '```json':
+                            in_json = True
+                            continue
+                        elif line.strip() == '```' and in_json:
+                            break
+                        elif in_json:
+                            json_lines.append(line)
+                    content = '\n'.join(json_lines)
+                
+                result = json.loads(content)
                 print(f"[AI_DEBUG] Interpreted query: {user_query}")
                 print(f"[AI_DEBUG] Result: {result}")
                 return result
