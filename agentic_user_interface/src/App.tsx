@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './App.css';
+import MedicationList from './components/MedicationList';
 
 interface Practitioner {
   id: string;
@@ -50,6 +51,50 @@ interface Organization {
   lastUpdated: string;
 }
 
+interface Medication {
+  id: string;
+  name: string;
+  cis_code: string;
+  pharmaceutical_form: string;
+  administration_route: string;
+  marketing_status: string;
+  amm_status: string;
+  amm_date: string;
+  enhanced_surveillance: boolean;
+  prescription_conditions: string[];
+  holders: string[];
+  primary_substance?: {
+    code: string;
+    names: string[];
+    dosage: string;
+    reference: string;
+  };
+  all_substances: Array<{
+    code_substance: string;
+    denominations: string[];
+    dosage_substance: string;
+    reference_dosage: string;
+    nature_composant: string;
+  }>;
+  main_presentation?: {
+    cip7: string;
+    cip13: string;
+    label: string;
+    reimbursement_rate: number | null;
+    price_without_fees: number | null;
+    price_with_fees: number | null;
+    collective_agreement: boolean | null;
+  };
+  all_presentations: any[];
+  reimbursement_status: string;
+  resource_type: string;
+  search_metadata: {
+    matched_substance: any;
+    presentation_count: number;
+    substance_count: number;
+  };
+}
+
 interface ApiResponse {
   choices: Array<{
     message: {
@@ -59,7 +104,7 @@ interface ApiResponse {
       natural_response?: string;        structured_data?: {
           success: boolean;
           data: {
-            results: (Practitioner | Organization)[];
+            results: (Practitioner | Organization | Medication)[];
             query_params?: any;
             query_type?: string;
           };
@@ -75,6 +120,7 @@ function App() {
   const [response, setResponse] = useState('');
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [queryType, setQueryType] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -84,6 +130,7 @@ function App() {
     setResponse('');
     setPractitioners([]);
     setOrganizations([]);
+    setMedications([]);
     setQueryType('');
     
     try {
@@ -157,15 +204,19 @@ function App() {
           setQueryType(detectedQueryType || '');
           console.log('Query type detected:', detectedQueryType, 'State:', queryType); // Debug log
           
-          // Check if results are organizations or practitioners based on resource_type
+          // Check if results are organizations, practitioners, or medications based on resource_type
           const practitionerResults = results.filter(result => result.resource_type === 'practitioner');
           const organizationResults = results.filter(result => result.resource_type === 'organization');
+          const medicationResults = results.filter(result => result.resource_type === 'medication');
           
           if (practitionerResults.length > 0) {
             setPractitioners(practitionerResults as Practitioner[]);
           }
           if (organizationResults.length > 0) {
             setOrganizations(organizationResults as Organization[]);
+          }
+          if (medicationResults.length > 0) {
+            setMedications(medicationResults as Medication[]);
           }
         }
       } else if (data.error) {
@@ -182,13 +233,16 @@ function App() {
 
   return (
     <div className="app-container">
-      <h1>Mediflux Chat Interface</h1>
+      <h1>🏥 Mediflux - Assistant Santé Français</h1>
+      <p style={{color: '#666', marginBottom: '2rem', fontSize: '1.1rem'}}>
+        Recherchez des médicaments, professionnels de santé et établissements en France
+      </p>
       <form onSubmit={handleSubmit}>
         <input
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter your query, e.g., 'find a sage-femme in paris 17th arrondissement' or 'find hospitals in 75017'"
+          placeholder="Recherchez des médicaments, professionnels ou établissements de santé... Ex: 'médicament pour dormir', 'doliprane', 'sage-femme à Paris'"
         />
         <button type="submit" disabled={isLoading}>
           {isLoading ? 'Sending...' : 'Send'}
@@ -314,6 +368,10 @@ function App() {
             ))}
           </div>
         </div>
+      )}
+      
+      {medications.length > 0 && (
+        <MedicationList medications={medications} />
       )}
     </div>
   );

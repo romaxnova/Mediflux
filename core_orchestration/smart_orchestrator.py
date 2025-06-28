@@ -6,12 +6,14 @@ Uses AI to interpret queries and orchestrate intelligent searches
 import asyncio
 from typing import Dict, List, Any, Optional
 from .ai_query_interpreter import AIQueryInterpreter
+from .medication_toolkit import MedicationToolkit
 import requests
 import os
 
 class SmartHealthcareOrchestrator:
     def __init__(self):
         self.ai_interpreter = AIQueryInterpreter()
+        self.medication_toolkit = MedicationToolkit()
         self.api_key = os.getenv("ANNUAIRE_SANTE_API_KEY", "b2c9aa48-53c0-4d1b-83f3-7b48a3e26740")
     
     def process_query(self, user_query: str) -> Dict[str, Any]:
@@ -43,6 +45,8 @@ class SmartHealthcareOrchestrator:
         # Try primary strategy
         if primary_strategy == "organization":
             result = self._search_organizations(interpretation["fhir_params"]["organization"])
+        elif primary_strategy == "medication":
+            result = self._search_medications(interpretation["fhir_params"]["medication"])
         else:
             result = self._search_practitioners(interpretation["fhir_params"]["practitioner"])
         
@@ -52,6 +56,8 @@ class SmartHealthcareOrchestrator:
             
             if fallback_strategy == "organization":
                 fallback_result = self._search_organizations(interpretation["fhir_params"]["organization"])
+            elif fallback_strategy == "medication":
+                fallback_result = self._search_medications(interpretation["fhir_params"]["medication"])
             else:
                 fallback_result = self._search_practitioners(interpretation["fhir_params"]["practitioner"])
             
@@ -536,6 +542,52 @@ class SmartHealthcareOrchestrator:
             traceback.print_exc()
             return {"success": False, "results": [], "error": str(e)}
     
+    def _search_medications(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Search for medications using the medication toolkit"""
+        if not any(params.values()):
+            return {"success": False, "results": [], "error": "No valid medication search parameters"}
+        
+        try:
+            search_type = params.get("search_type", "name")
+            query = params.get("query", "")
+            limit = int(params.get("limit", 10))
+            
+            print(f"[SMART_DEBUG] Medication search - Type: {search_type}, Query: {query}, Limit: {limit}")
+            
+            # Use medication toolkit based on search type
+            if search_type == "name":
+                result = self.medication_toolkit.search_by_name(query, limit)
+            elif search_type == "substance":
+                result = self.medication_toolkit.search_by_substance(query, limit)
+            elif search_type == "cis_code":
+                result = self.medication_toolkit.get_medication_details(query)
+                # Convert single result to list format
+                if result.get("success") and result.get("medication"):
+                    result["medications"] = [result["medication"]]
+            else:
+                return {"success": False, "results": [], "error": f"Unknown search type: {search_type}"}
+            
+            if result.get("success"):
+                # The medication toolkit already formats results properly
+                # Just return them directly without re-formatting
+                medications = result.get("results", [])  # Use "results" not "medications"
+                
+                return {
+                    "success": True,
+                    "results": medications,  # Already formatted by medication toolkit
+                    "count": len(medications)
+                }
+            else:
+                return {
+                    "success": False,
+                    "results": [],
+                    "error": result.get("error", "Medication search failed")
+                }
+                
+        except Exception as e:
+            print(f"[SMART_ERROR] Medication search failed: {e}")
+            return {"success": False, "results": [], "error": str(e)}
+    
     def _format_response(self, result: Dict[str, Any], interpretation: Dict[str, Any], search_type: str) -> Dict[str, Any]:
         """Format the final response for the frontend"""
         if not result.get("success"):
@@ -547,7 +599,14 @@ class SmartHealthcareOrchestrator:
             }
         
         results = result.get("results", [])
-        entity_type = "healthcare organizations" if search_type == "organization" else "healthcare professionals"
+        
+        # Determine entity type based on search type
+        if search_type == "organization":
+            entity_type = "healthcare organizations"
+        elif search_type == "medication":
+            entity_type = "medications"
+        else:
+            entity_type = "healthcare professionals"
         
         return {
             "success": True,
@@ -730,11 +789,12 @@ class SmartHealthcareOrchestrator:
         # Check if this looks like a name search but AI interpretation missed it
         # ONLY override if ALL of these conditions are met:
         # 1. We found a potential practitioner name
-        # 2. AI didn't already correctly identify the intent as organization  
+        # 2. AI didn't already correctly identify the intent as organization OR medication
         # 3. AI didn't populate practitioner_name
         # 4. The extracted name doesn't look like an organization name
+        # 5. NOT a medication search (protect medication intents)
         if (practitioner_name and 
-            enhanced.get("intent") != "organization" and  # Don't override organization searches
+            enhanced.get("intent") not in ["organization", "medication"] and  # Don't override organization or medication searches
             not enhanced["fhir_params"]["practitioner"].get("practitioner_name") and
             not enhanced["extracted_entities"].get("organization_name")):  # Don't override if org name was detected
             
@@ -743,7 +803,11 @@ class SmartHealthcareOrchestrator:
             name_lower = practitioner_name.lower()
             is_likely_org_name = any(indicator in name_lower for indicator in org_indicators)
             
-            if not is_likely_org_name:
+            # Additional check: make sure it's not a medication name
+            medication_indicators = ['doliprane', 'aspirin', 'aspirine', 'paracetamol', 'paracétamol', 'ibuprofen', 'ibuprofène']
+            is_likely_medication = any(med in name_lower for med in medication_indicators)
+            
+            if not is_likely_org_name and not is_likely_medication:
                 print(f"[SMART_DEBUG] AI missed name '{practitioner_name}', enhancing interpretation")
                 
                 # Split name into components
@@ -774,47 +838,55 @@ class SmartHealthcareOrchestrator:
                 print(f"[SMART_DEBUG] Detected name '{practitioner_name}' looks like organization name, not overriding")
         
         # OVERRIDE fallback interpretation if we have better extraction
-        # ONLY if AI didn't already correctly identify intent as organization
+        # ONLY if AI didn't already correctly identify intent as organization or medication
         elif (practitioner_name and 
               enhanced["fhir_params"]["practitioner"].get("practitioner_name") and 
-              enhanced.get("intent") != "organization" and
+              enhanced.get("intent") not in ["organization", "medication"] and  # Don't override organization or medication searches
               not enhanced["extracted_entities"].get("organization_name")):
             current_name = enhanced["fhir_params"]["practitioner"]["practitioner_name"]
             
-            # Override if names are different AND enhanced extraction is cleaner
-            # (doesn't contain titles, command words, etc.)
-            should_override = (
-                practitioner_name != current_name and (
-                    len(practitioner_name) > len(current_name) or  # Enhanced is longer
-                    not re.search(r'\b(?:dr\.?|docteur|doctor|find|search)\b', practitioner_name, re.IGNORECASE)  # Enhanced is cleaner
-                )
-            )
+            # Additional check: make sure it's not a medication name
+            medication_indicators = ['doliprane', 'aspirin', 'aspirine', 'paracetamol', 'paracétamol', 'ibuprofen', 'ibuprofène']
+            is_likely_medication = any(med in practitioner_name.lower() for med in medication_indicators)
             
-            if should_override:
-                print(f"[SMART_DEBUG] Overriding fallback name '{current_name}' with better extraction '{practitioner_name}'")
+            if is_likely_medication:
+                print(f"[SMART_DEBUG] Detected '{practitioner_name}' as medication name, not overriding")
+            else:
+                # Override if names are different AND enhanced extraction is cleaner
+                # (doesn't contain titles, command words, etc.)
+                should_override = (
+                    practitioner_name != current_name and (
+                        len(practitioner_name) > len(current_name) or  # Enhanced is longer
+                        not re.search(r'\b(?:dr\.?|docteur|doctor|find|search)\b', practitioner_name, re.IGNORECASE)  # Enhanced is cleaner
+                    )
+                )
                 
-                # Split name into components
-                name_parts = practitioner_name.split()
-                if len(name_parts) == 1:
-                    # Single name - treat as family name for broader search
-                    family_name = name_parts[0]
-                    given_name = ""
-                else:
-                    # Multiple parts - last is family, rest are given names
-                    family_name = name_parts[-1]
-                    given_name = " ".join(name_parts[:-1])
-                
-                # Update with better interpretation
-                enhanced["extracted_entities"]["practitioner_name"] = practitioner_name
-                enhanced["fhir_params"]["practitioner"]["practitioner_name"] = practitioner_name
-                enhanced["fhir_params"]["practitioner"]["name"] = practitioner_name
-                enhanced["fhir_params"]["practitioner"]["family"] = family_name
-                enhanced["fhir_params"]["practitioner"]["given"] = given_name if given_name else None
-                
-                print(f"[SMART_DEBUG] Corrected params: family='{family_name}', given='{given_name or 'None'}'")
+                if should_override:
+                    print(f"[SMART_DEBUG] Overriding fallback name '{current_name}' with better extraction '{practitioner_name}'")
+                    
+                    # Split name into components
+                    name_parts = practitioner_name.split()
+                    if len(name_parts) == 1:
+                        # Single name - treat as family name for broader search
+                        family_name = name_parts[0]
+                        given_name = ""
+                    else:
+                        # Multiple parts - last is family, rest are given names
+                        family_name = name_parts[-1]
+                        given_name = " ".join(name_parts[:-1])
+                    
+                    # Update with better interpretation
+                    enhanced["extracted_entities"]["practitioner_name"] = practitioner_name
+                    enhanced["fhir_params"]["practitioner"]["practitioner_name"] = practitioner_name
+                    enhanced["fhir_params"]["practitioner"]["name"] = practitioner_name
+                    enhanced["fhir_params"]["practitioner"]["family"] = family_name
+                    enhanced["fhir_params"]["practitioner"]["given"] = given_name if given_name else None
+                    
+                    print(f"[SMART_DEBUG] Corrected params: family='{family_name}', given='{given_name or 'None'}'")
         else:
-            if practitioner_name and enhanced.get("intent") == "organization":
-                print(f"[SMART_DEBUG] Found name '{practitioner_name}' but AI correctly identified organization intent - respecting AI decision")
+            if practitioner_name and enhanced.get("intent") in ["organization", "medication"]:
+                intent_type = enhanced.get("intent")
+                print(f"[SMART_DEBUG] Found name '{practitioner_name}' but AI correctly identified {intent_type} intent - respecting AI decision")
         
         # Extract location information that might have been missed
         postal_match = re.search(r'\b(\d{5})\b', user_query)

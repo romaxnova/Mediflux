@@ -165,13 +165,7 @@ Be intelligent about ambiguous queries - use context clues.
                 
                 result = json.loads(content)
                 print(f"[AI_DEBUG] Interpreted query: {user_query}")
-                print(f"[AI_DEBUG] Raw AI result: {result}")
-                
-                # Post-process medication queries to fix AI hallucinations
-                if result.get('intent') == 'medication':
-                    result = self._validate_and_fix_medication_query(user_query, result)
-                    print(f"[AI_DEBUG] Final result: {result}")
-                
+                print(f"[AI_DEBUG] Result: {result}")
                 return result
             except json.JSONDecodeError as e:
                 print(f"[AI_ERROR] Failed to parse AI response: {e}")
@@ -312,9 +306,9 @@ Be intelligent about ambiguous queries - use context clues.
                     'anti-inflammatory': 'ibuprofene',
                     'antalgique': 'paracetamol',
                     'analgesic': 'paracetamol',
-                    'somnifère': 'melatonine',  # ✅ Fixed: use actual medication name
-                    'sleeping pill': 'melatonine',  # ✅ Fixed: use actual medication name
-                    'anxiolytique': 'lexomil',  # ✅ Fixed: use actual medication name
+                    'somnifère': 'somnifere',
+                    'sleeping pill': 'somnifere',
+                    'anxiolytique': 'anxiolytique',
                     'antitussif': 'toux',  # Search for cough medications
                     'cough suppressant': 'toux',
                     'antihistaminique': 'antihistaminique',
@@ -688,13 +682,7 @@ For name searches, extract the practitioner name and put it in the practitioner_
                 
                 result = json.loads(content)
                 print(f"[AI_DEBUG] Interpreted query: {user_query}")
-                print(f"[AI_DEBUG] Raw AI result: {result}")
-                
-                # Post-process medication queries to fix AI hallucinations
-                if result.get('intent') == 'medication':
-                    result = self._validate_and_fix_medication_query(user_query, result)
-                    print(f"[AI_DEBUG] Final result: {result}")
-                
+                print(f"[AI_DEBUG] Result: {result}")
                 return result
             except json.JSONDecodeError as e:
                 print(f"[AI_ERROR] Failed to parse AI response: {e}")
