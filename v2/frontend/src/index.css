@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-blue: #2563eb;
+  --primary-blue-light: #3b82f6;
+  --secondary-green: #10b981;
+  --accent-purple: #d946ef;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --background-light: #f8fafc;
+  --border-light: #e5e7eb;
+  --gradient-medical: linear-gradient(135deg, #2563eb 0%, #10b981 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--background-light);
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+@layer components {
+  .glass-effect {
+    @apply bg-white/95 backdrop-blur-sm border border-white/20 shadow-sm;
+  }
+  
+  .medical-gradient {
+    background: var(--gradient-medical);
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:scale-[1.02];
+  }
+  
+  .chat-bubble {
+    @apply rounded-2xl px-4 py-3 max-w-xs break-words;
+  }
+  
+  .chat-bubble-user {
+    @apply bg-primary-600 text-white ml-auto;
+  }
+  
+  .chat-bubble-ai {
+    @apply bg-white border border-gray-200 text-gray-900;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-gray-900 font-medium px-4 py-2 rounded-lg border border-gray-300 transition-colors;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors;
+  }
+}
