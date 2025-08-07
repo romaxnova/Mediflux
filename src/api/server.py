@@ -15,9 +15,11 @@ import uvicorn
 # Add parent directory to path to import orchestrator
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
+modules_dir = os.path.join(parent_dir, 'modules')
 sys.path.insert(0, parent_dir)
+sys.path.insert(0, modules_dir)
 
-from orchestrator import MedifluxOrchestrator
+from modules.orchestrator import MedifluxOrchestrator
 
 app = FastAPI(title="Mediflux V2 API", version="2.0.0")
 
@@ -65,14 +67,53 @@ async def chat_endpoint(message: ChatMessage):
             user_id=message.user_id
         )
         
+        # Convert orchestrator response to frontend format
+        success = result.get("success", False)
+        intent = result.get("intent", "unknown")
+        results = result.get("results", {})
+        
+        # Generate user-friendly response based on intent and results
+        if success:
+            if intent == "simulate_cost":
+                response_text = f"💰 Analyse de coût effectuée. Intent: {intent}"
+                if "simulation" in results:
+                    response_text += f"\n📊 Simulation disponible"
+            elif intent == "care_pathway":
+                response_text = f"🗺️ Parcours de soins analysé. Intent: {intent}"
+                if "pathway" in results:
+                    response_text += f"\n📋 Recommandations disponibles"
+            elif intent == "analyze_document":
+                response_text = f"📄 Document analysé. Intent: {intent}"
+                if "analysis" in results:
+                    response_text += f"\n✅ Analyse complète"
+            elif intent == "medication_info":
+                response_text = f"💊 Information médicament. Intent: {intent}"
+                if "medication_data" in results:
+                    response_text += f"\n📋 Données médicament disponibles"
+            elif intent == "practitioner_search":
+                response_text = f"👩‍⚕️ Recherche praticien. Intent: {intent}"
+                if "search_results" in results:
+                    response_text += f"\n🔍 Résultats de recherche"
+            else:
+                response_text = f"✅ Requête traitée avec succès. Intent: {intent}"
+        else:
+            error = result.get("error", "Erreur inconnue")
+            response_text = f"❌ Erreur: {error}"
+        
         return ChatResponse(
-            response=result.get("response", "Je n'ai pas pu traiter votre demande."),
-            intent=result.get("intent"),
-            data=result.get("data")
+            response=response_text,
+            intent=intent,
+            data=result
         )
     except Exception as e:
         print(f"Error processing chat message: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        traceback.print_exc()
+        return ChatResponse(
+            response=f"❌ Erreur système: {str(e)}",
+            intent="error",
+            data={"error": str(e)}
+        )
 
 @app.post("/document/analyze")
 async def analyze_document(file: UploadFile = File(...), user_id: Optional[str] = "default"):

@@ -42,27 +42,51 @@ class IntentRouter:
             ],
             "care_pathway": [
                 r"parcours.*soins",
-                r"chemin.*médical",
+                r"chemin.*médical", 
                 r"itinéraire.*santé",
                 r"care.*pathway",
                 r"séquence.*consultation",
                 r"où.*consulter",
-                r"recommandation.*spécialiste"
+                r"recommandation.*spécialiste",
+                # Enhanced patterns for better detection
+                r"meilleur.*parcours",
+                r"parcours.*optimal",
+                r"comment.*traiter",
+                r"traitement.*pour",
+                r"soins.*pour",
+                r"suivi.*médical",
+                r"protocole.*soins",
+                r"prise.*en.*charge",
+                r"étapes.*traitement",
+                r"démarche.*médicale",
+                r"gestion.*maladie",
+                r"stratégie.*thérapeutique"
             ],
             "medication_info": [
                 r"médicament.*\b\w+",
-                r"information.*médicament",
+                r"information.*médicament", 
                 r"doliprane|aspirin|paracétamol|ibuprofène",
                 r"substance.*active",
                 r"medication.*information",
-                r"drug.*information"
+                r"drug.*information",
+                # Enhanced patterns for sleep aids and OTC medications
+                r"somnifère|somnifere|sleeping.*pill",
+                r"trouve.*moi.*(médicament|somnifère|anti.*douleur)",
+                r"sans.*ordonnance",
+                r"médicament.*libre",
+                r"over.*the.*counter",
+                r"automédication"
             ],
             "practitioner_search": [
                 r"trouver.*(médecin|docteur|spécialiste)",
                 r"chercher.*(praticien|cabinet)",
                 r"find.*(doctor|practitioner)",
                 r"cardiologue|dentiste|kinésithérapeute|sage-femme",
-                r"hôpital|clinique|centre.*médical"
+                r"hôpital|clinique|centre.*médical",
+                # Enhanced patterns for finding healthcare providers
+                r"où.*consulter",
+                r"besoin.*d.*un.*(médecin|docteur)",
+                r"consultation.*avec.*(spécialiste|généraliste)"
             ]
         }
     
@@ -91,6 +115,11 @@ class IntentRouter:
                 r"(ophtalmologue|ophthalmologist)",
                 r"(dermatologue|dermatologist)",
                 r"(gynécologue|gynecologist)"
+            ],
+            "location": [
+                r"(?:à|in|dans|en|sur)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r"(?:ville|city)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r"(paris|lyon|marseille|toulouse|nice|nantes|strasbourg|montpellier|bordeaux|lille|rennes|reims|le havre|saint-étienne|toulon|grenoble|dijon|angers|nîmes|villeurbanne)"
             ],
             "document_type": [
                 r"carte.*tiers.*payant",
@@ -196,6 +225,10 @@ class IntentRouter:
             specialty = self._extract_entity(query, "specialty")
             if specialty:
                 params["specialty"] = specialty
+            
+            location = self._extract_entity(query, "location")
+            if location:
+                params["location"] = location
             
             # Extract practitioner name if mentioned
             name_patterns = [

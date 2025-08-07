@@ -70,18 +70,14 @@ class AnnuaireClient:
             
             role_code = specialty_codes.get(specialty.lower(), "60")  # Default to médecin
             
-            # Build search parameters
+            # Build search parameters (remove unsupported location params)
             search_params = {
                 "role": role_code,
                 "_count": "50"
             }
             
-            if location:
-                # Try to determine if location is a city or postal code
-                if location.isdigit() and len(location) == 5:
-                    search_params["address-postalcode"] = location
-                else:
-                    search_params["address-city"] = location
+            # Note: Direct location filtering not supported by this FHIR endpoint
+            # Location filtering would need to be done post-processing or via Organization search
             
             # Execute search
             response = await self._make_fhir_request("PractitionerRole", search_params)
@@ -91,12 +87,16 @@ class AnnuaireClient:
             
             # Aggregate results for pathway optimization
             practitioners = response.get("results", [])
+            
+            # If location specified, we should filter post-processing
+            # For now, return the results with a note about location filtering
             aggregated_data = self._aggregate_practitioner_data(practitioners, specialty, location)
             
             return {
                 "success": True,
                 "specialty": specialty,
                 "location": location,
+                "location_note": "Location filtering not supported by FHIR API - showing all practitioners",
                 "total_found": len(practitioners),
                 "aggregated_data": aggregated_data,
                 "raw_results": practitioners[:10]  # Return sample for reference

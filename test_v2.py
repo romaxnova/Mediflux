@@ -95,7 +95,7 @@ async def test_full_orchestrator():
     print("=" * 40)
     
     try:
-        from orchestrator import MedifluxOrchestrator
+        from modules.orchestrator import MedifluxOrchestrator
         
         orchestrator = MedifluxOrchestrator()
         
