@@ -26,78 +26,114 @@ Mediflux V2 is a lean, patient-centric healthcare orchestrator that streamlines 
 - **AI/ML**: X API (dev), local Mixtral LLM (production)
 - **Data Processing**: Pandas, BeautifulSoup, FAISS for vector embeddings
 
+## Project Structure
+
 ```
-v2/
-├── src/
-│   ├── main.py                 # FastAPI application
-│   ├── core_orchestration/     # AI agents and orchestration
+mediflux/
+├── src/                        # Backend Python modules
+│   ├── orchestrator.py         # Main AI orchestrator
+│   ├── api/                    # FastAPI routes and server
+│   ├── data_hub/               # Data source integrations
 │   ├── document_analyzer/      # OCR and extraction logic
-│   └── tests/                  # Test suite
-├── agentic_user_interface/     # React frontend
-├── data/                       # Healthcare datasets
-└── docs/                       # Documentation
+│   ├── reimbursement/          # Cost simulation logic
+│   ├── care_pathway/           # Care path optimization
+│   ├── memory/                 # User session management
+│   ├── database/               # Database management
+│   └── interpreter/            # Intent routing and NLP
+├── frontend/                   # React TypeScript frontend
+│   ├── src/                    # React components
+│   ├── public/                 # Static assets
+│   └── package.json            # Node.js dependencies
+├── data/                       # Healthcare datasets and cache
+├── docs/                       # Documentation and progress
+│   ├── v2todo.md               # Development TODO list
+│   └── v2progress.md           # Development progress tracking
+├── tests/                      # Test suite
+├── start_api.py                # Server startup script
+├── demo_v2.py                  # Module demonstration script
+├── test_v2.py                  # Module testing script
+└── requirements.txt            # Python dependencies
 ```
 
 ## Quick Start
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.9+ 
 - Node.js 18+
-- Tesseract OCR
+- Tesseract OCR with French language support
 - Git
+
+### System Dependencies
+
+**macOS (Homebrew):**
+```bash
+brew install tesseract tesseract-lang
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install tesseract-ocr tesseract-ocr-fra
+```
+
+**Windows:**
+Download from: https://github.com/UB-Mannheim/tesseract/wiki
 
 ### Local Development
 
-1. **Clone and setup backend**:
+1. **Clone and setup project**:
 ```bash
 git clone https://github.com/romaxnova/Mediflux.git
-cd Mediflux/v2
+cd Mediflux
 
-# Create virtual environment
-python -m venv venv
+# Create and activate virtual environment
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-2. **Install Tesseract OCR**:
+2. **Setup frontend**:
 ```bash
-# macOS
-brew install tesseract tesseract-lang
-
-# Ubuntu/Debian
-sudo apt-get install tesseract-ocr tesseract-ocr-fra
-
-# Windows
-# Download from: https://github.com/UB-Mannheim/tesseract/wiki
-```
-
-3. **Setup frontend**:
-```bash
-cd agentic_user_interface
+cd frontend
 npm install
+cd ..
 ```
 
-4. **Environment Configuration**:
+3. **Environment Configuration**:
 ```bash
-# Copy example environment file
-cp .env.example .env
+# Copy example environment file (if exists)
+cp .env.example .env  # Optional
 
-# Configure your settings:
-# - X_API_KEY for AI services
-# - DATABASE_URL for SQLite
-# - UPLOAD_PATH for document storage
+# Configure your settings in .env:
+# - OPENAI_API_KEY or XAI_API_KEY for AI services
+# - ANNUAIRE_SANTE_API_KEY for healthcare provider data
 ```
 
-5. **Run the application**:
-```bash
-# Terminal 1: Backend
-python -m uvicorn src.main:app --reload --port 8000
+4. **Run the application**:
 
-# Terminal 2: Frontend  
-cd agentic_user_interface
+**Terminal 1 - Backend:**
+```bash
+# From project root with venv activated
+source venv/bin/activate
+python start_api.py
+```
+
+**Terminal 2 - Frontend:**
+```bash
+# From frontend directory
+cd frontend
 npm run dev
+```
+
+5. **Testing and Development**:
+```bash
+# Test module functionality
+python test_v2.py
+
+# Run module demonstrations  
+python demo_v2.py
 ```
 
 6. **Access the application**:
@@ -110,50 +146,87 @@ npm run dev
 
 1. **Build frontend**:
 ```bash
-cd agentic_user_interface
+cd frontend
 npm run build
+cd ..
 ```
 
 2. **Run with production settings**:
 ```bash
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+# Activate virtual environment
+source venv/bin/activate
+
+# Start production server
+python start_api.py
+# Server will serve both API and built frontend
 ```
 
 ### Web Hosting (Render/Railway/Heroku)
 
 1. **Prepare for deployment**:
 ```bash
-# Ensure requirements.txt includes all dependencies
+# Ensure all dependencies are captured
 pip freeze > requirements.txt
 
-# Configure runtime
-echo "python-3.9.0" > runtime.txt
+# Create runtime specification (if needed)
+echo "python-3.12.3" > runtime.txt
 ```
 
 2. **Render Deployment**:
    - Connect GitHub repository
-   - Build Command: `pip install -r requirements.txt && cd agentic_user_interface && npm install && npm run build`
-   - Start Command: `python -m uvicorn src.main:app --host 0.0.0.0 --port $PORT`
-   - Environment: Set required environment variables
+   - **Build Command**: 
+     ```bash
+     pip install -r requirements.txt && cd frontend && npm install && npm run build
+     ```
+   - **Start Command**: 
+     ```bash
+     python start_api.py
+     ```
+   - **Environment Variables**: Set required API keys in Render dashboard
 
-3. **Docker Deployment**:
+3. **Railway Deployment**:
+   - Connect GitHub repository  
+   - Railway auto-detects Python and Node.js
+   - Set environment variables in Railway dashboard
+   - Deploy from v2 branch
+
+4. **Docker Deployment**:
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-fra \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Build frontend
+WORKDIR /app/frontend
+RUN npm install && npm run build
+
+WORKDIR /app
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "start_api.py"]
+```
+
+### Environment Variables for Production
+
+Required environment variables:
+```
+OPENAI_API_KEY=your_openai_key_here
+# OR
+XAI_API_KEY=your_xai_key_here
+
+ANNUAIRE_SANTE_API_KEY=your_annuaire_key_here
 ```
 
 ## Data Sources Integration
