@@ -72,30 +72,12 @@ async def chat_endpoint(message: ChatMessage):
         intent = result.get("intent", "unknown")
         results = result.get("results", {})
         
-        # Generate user-friendly response based on intent and results
-        if success:
-            if intent == "simulate_cost":
-                response_text = f"💰 Analyse de coût effectuée. Intent: {intent}"
-                if "simulation" in results:
-                    response_text += f"\n📊 Simulation disponible"
-            elif intent == "care_pathway":
-                response_text = f"🗺️ Parcours de soins analysé. Intent: {intent}"
-                if "pathway" in results:
-                    response_text += f"\n📋 Recommandations disponibles"
-            elif intent == "analyze_document":
-                response_text = f"📄 Document analysé. Intent: {intent}"
-                if "analysis" in results:
-                    response_text += f"\n✅ Analyse complète"
-            elif intent == "medication_info":
-                response_text = f"💊 Information médicament. Intent: {intent}"
-                if "medication_data" in results:
-                    response_text += f"\n📋 Données médicament disponibles"
-            elif intent == "practitioner_search":
-                response_text = f"👩‍⚕️ Recherche praticien. Intent: {intent}"
-                if "search_results" in results:
-                    response_text += f"\n🔍 Résultats de recherche"
-            else:
-                response_text = f"✅ Requête traitée avec succès. Intent: {intent}"
+        # Use AI-generated response if available, otherwise fallback
+        if success and "response" in result:
+            response_text = result["response"]  # AI-generated response
+        elif success:
+            # Fallback for backward compatibility
+            response_text = f"✅ Requête traitée avec succès. Intent: {intent}"
         else:
             error = result.get("error", "Erreur inconnue")
             response_text = f"❌ Erreur: {error}"

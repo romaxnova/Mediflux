@@ -16,6 +16,7 @@ from .care_pathway.advisor import CarePathwayAdvisor
 from .data_hub.bdpm import BDPMClient
 from .data_hub.annuaire import AnnuaireClient
 from .data_hub.odisse import OdisseClient
+from .ai.response_generator import AIResponseGenerator
 
 
 class MedifluxOrchestrator:
@@ -30,6 +31,7 @@ class MedifluxOrchestrator:
         self.reimbursement_simulator = ReimbursementSimulator()
         self.document_analyzer = DocumentAnalyzer()
         self.care_pathway_advisor = CarePathwayAdvisor()
+        self.ai_response_generator = AIResponseGenerator()
         
         # Data clients
         self.bdpm_client = BDPMClient()
@@ -59,6 +61,14 @@ class MedifluxOrchestrator:
             # Execute intent-specific workflow
             response = await self._execute_intent_workflow(intent_result, user_context)
             
+            # Generate AI response based on results
+            ai_response = await self.ai_response_generator.generate_response(
+                user_query=user_query,
+                intent=intent_result["intent"],
+                orchestrator_results=response,
+                user_context=user_context
+            )
+            
             # Update user memory with session data
             await self.memory_store.update_session_history(user_id, user_query, response)
             
@@ -66,7 +76,8 @@ class MedifluxOrchestrator:
                 "success": True,
                 "intent": intent_result["intent"],
                 "confidence": intent_result["confidence"],
-                "results": response,
+                "response": ai_response,  # AI-generated response
+                "results": response,      # Structured data
                 "user_context": user_context,
                 "timestamp": asyncio.get_event_loop().time()
             }
