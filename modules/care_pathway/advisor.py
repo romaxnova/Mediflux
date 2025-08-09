@@ -7,6 +7,12 @@ Integrates Annuaire Santé and Odissé data for intelligent routing
 import asyncio
 from typing import Dict, List, Any, Optional
 import logging
+import sys
+import os
+
+# Add knowledge_base module to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from knowledge_base.manager import KnowledgeBaseManager
 
 
 class CarePathwayAdvisor:
@@ -18,7 +24,11 @@ class CarePathwayAdvisor:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         
-        # Standard care pathways by condition
+        # Initialize knowledge base manager
+        kb_path = os.path.join(os.path.dirname(__file__), '..', '..', 'knowledge_base')
+        self.knowledge_base = KnowledgeBaseManager(kb_path)
+        
+        # Fallback pathway templates for conditions without structured knowledge
         self.pathway_templates = {
             "back_pain": [
                 {"step": 1, "type": "gp_consultation", "urgency": "low"},
@@ -49,6 +59,145 @@ class CarePathwayAdvisor:
         }
     
     async def get_optimized_pathway(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get evidence-based optimized care pathway for a condition
+        
+        Args:
+            params: Dictionary containing condition, location, user_profile
+            
+        Returns:
+            Structured pathway with evidence sources and confidence scores
+        """
+        try:
+            condition = params.get("condition", "").lower()
+            location = params.get("location", "paris").lower()
+            user_profile = params.get("user_profile", {})
+            
+            # Try to get structured knowledge first
+            pathway_data = self.knowledge_base.get_clinical_pathway(
+                condition=condition,
+                severity="standard",
+                region=location
+            )
+            
+            if pathway_data.get("pathway"):
+                # Use knowledge base pathway
+                return await self._format_knowledge_based_pathway(pathway_data, params)
+            else:
+                # Fallback to template-based pathway
+                return await self._get_template_based_pathway(condition, params)
+                
+        except Exception as e:
+            self.logger.error(f"Pathway generation failed: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to generate pathway: {str(e)}"
+            }
+    
+    async def _format_knowledge_based_pathway(self, pathway_data: Dict, params: Dict) -> Dict:
+        """
+        Format knowledge base pathway data for orchestrator response
+        """
+        condition = pathway_data["condition"]
+        pathway = pathway_data["pathway"]
+        location = params.get("location", "paris")
+        
+        # Convert pathway steps to structured format
+        pathway_steps = []
+        total_cost = 0
+        
+        for step_key, step_data in pathway.items():
+            if isinstance(step_data, dict) and "action" in step_data:
+                step_number = int(step_key.split("_")[-1]) if "_" in step_key else len(pathway_steps) + 1
+                
+                step_cost = step_data.get("cost_estimate", {})
+                step_total = sum(step_cost.values()) if isinstance(step_cost, dict) else 0
+                total_cost += step_total
+                
+                pathway_steps.append({
+                    "step": step_number,
+                    "type": step_data["action"],
+                    "timing": step_data.get("timing", "standard"),
+                    "rationale": step_data.get("rationale", ""),
+                    "cost": step_total,
+                    "wait_time": step_data.get("wait_time", "standard")
+                })
+        
+        # Get medication options
+        medications = self.knowledge_base.get_medication_options(
+            condition, params.get("user_profile", {})
+        )
+        
+        # Get quality indicators
+        quality_metrics = self.knowledge_base.get_quality_indicators(condition)
+        
+        return {
+            "success": True,
+            "condition": condition,
+            "pathway_steps": pathway_steps,
+            "cost_breakdown": {
+                "total_estimated_cost": total_cost,
+                "patient_cost": total_cost * 0.30,  # Rough estimate, would be calculated precisely
+                "evidence_based": True
+            },
+            "medications": medications[:3],  # Top 3 medication options
+            "regional_context": {
+                "location": location,
+                "data_source": "knowledge_base",
+                "last_updated": pathway_data.get("last_updated")
+            },
+            "quality_indicators": quality_metrics,
+            "evidence": {
+                "level": pathway_data.get("evidence_level", "C"),
+                "source": pathway_data.get("source", "Clinical guidelines"),
+                "confidence": pathway_data.get("confidence", 0.7)
+            },
+            "optimization_tips": [
+                f"Pathway based on {pathway_data.get('source', 'clinical evidence')}",
+                f"Success rate: {quality_metrics.get('success_rate', 'N/A')}",
+                f"Average resolution: {quality_metrics.get('resolution_time_days', 'N/A')} days"
+            ]
+        }
+    
+    async def _get_template_based_pathway(self, condition: str, params: Dict) -> Dict:
+        """
+        Fallback to template-based pathway when knowledge base doesn't have data
+        """
+        user_location = params.get("location", "Paris")
+        preferences = params.get("preferences", {})
+        
+        # Get base pathway template
+        pathway_template = self._get_pathway_template(condition)
+        
+        # Customize pathway based on user preferences and location
+        optimized_pathway = await self._optimize_pathway(
+            pathway_template, 
+            user_location, 
+            preferences
+        )
+        
+        # Add cost estimates
+        cost_breakdown = await self._calculate_pathway_costs(optimized_pathway, params)
+        
+        # Add regional context
+        regional_info = await self._get_regional_context(user_location, condition)
+        
+        return {
+            "success": True,
+            "condition": condition,
+            "pathway_steps": optimized_pathway,
+            "cost_breakdown": cost_breakdown,
+            "regional_context": regional_info,
+            "estimated_timeline": self._calculate_timeline(optimized_pathway),
+            "optimization_tips": self._generate_optimization_tips(optimized_pathway, preferences),
+            "evidence": {
+                "level": "Template",
+                "source": "Standard protocols",
+                "confidence": 0.6
+            }
+        }
+    
+    async def get_optimized_pathway_legacy(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get optimized care pathway recommendation
         

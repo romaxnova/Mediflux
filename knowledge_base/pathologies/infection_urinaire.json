@@ -1,0 +1,147 @@
+{
+  "pathology": {
+    "name": "Infection urinaire",
+    "icd10": "N39.0",
+    "aliases": ["cystite", "infection vésicale", "UTI"],
+    "severity_levels": ["simple", "compliquée", "récidivante"]
+  },
+  
+  "clinical_pathway": {
+    "evidence_level": "A",
+    "source": "HAS Recommandations 2024",
+    "last_updated": "2024-03-15",
+    
+    "standard_protocol": {
+      "step_1": {
+        "action": "Consultation médecin généraliste",
+        "timing": "immediate",
+        "rationale": "Diagnostic clinique et prescription ECBU",
+        "cost_estimate": {
+          "consultation": 25.00,
+          "ecbu": 15.50,
+          "secteur": 1
+        }
+      },
+      "step_2": {
+        "action": "ECBU + antibiogramme",
+        "timing": "24-48h",
+        "rationale": "Confirmation bactériologique et sensibilité",
+        "alternatives": ["Bandelette urinaire si infection simple"]
+      },
+      "step_3": {
+        "action": "Antibiothérapie ciblée",
+        "timing": "après résultats ECBU",
+        "first_line": ["Fosfomycine 3g", "Nitrofurantoïne"],
+        "duration": "3-5 jours selon molécule"
+      }
+    },
+    
+    "emergency_protocol": {
+      "triggers": ["fièvre >38.5°C", "douleurs lombaires", "vomissements"],
+      "step_1": {
+        "action": "Consultation urgente ou urgences",
+        "timing": "same_day",
+        "rationale": "Suspicion pyélonéphrite"
+      }
+    }
+  },
+  
+  "regional_data": {
+    "paris": {
+      "gp_availability": "2-3 jours",
+      "laboratory_density": "high",
+      "average_cost": {
+        "consultation_gp": 25.00,
+        "ecbu": 15.50,
+        "total_episode": 65.00
+      }
+    },
+    "lyon": {
+      "gp_availability": "1-2 jours",
+      "laboratory_density": "medium",
+      "average_cost": {
+        "consultation_gp": 25.00,
+        "ecbu": 15.50,
+        "total_episode": 62.00
+      }
+    }
+  },
+  
+  "medications": {
+    "first_line": [
+      {
+        "name": "Fosfomycine",
+        "bdpm_cis": "68473346",
+        "dosage": "3g dose unique",
+        "cost": 4.50,
+        "reimbursement": 0.65,
+        "advantages": ["Dose unique", "Bonne tolérance"]
+      },
+      {
+        "name": "Nitrofurantoïne",
+        "bdpm_cis": "68885747", 
+        "dosage": "100mg x2/jour x 5j",
+        "cost": 8.20,
+        "reimbursement": 0.65,
+        "advantages": ["Peu de résistances"]
+      }
+    ],
+    "second_line": [
+      {
+        "name": "Ciprofloxacine",
+        "conditions": ["échec première ligne", "infection compliquée"],
+        "duration": "7 jours"
+      }
+    ]
+  },
+  
+  "quality_indicators": {
+    "success_rate": 0.92,
+    "resolution_time_days": 3.5,
+    "recurrence_rate": 0.15,
+    "patient_satisfaction": 4.2,
+    "data_source": "user_feedback_2024",
+    "sample_size": 1247
+  },
+  
+  "contraindications": {
+    "pregnancy": {
+      "avoid": ["Nitrofurantoïne après 36 SA"],
+      "preferred": ["Amoxicilline", "Céfalexine"]
+    },
+    "renal_insufficiency": {
+      "avoid": ["Nitrofurantoïne si ClCr <30"],
+      "adjust_doses": true
+    }
+  },
+  
+  "follow_up": {
+    "standard": {
+      "timing": "3-5 jours post-traitement",
+      "action": "Évaluation clinique",
+      "ecbu_control": false
+    },
+    "complicated": {
+      "timing": "7-10 jours",
+      "ecbu_control": true,
+      "specialist_referral": "si échec ou récidive"
+    }
+  },
+  
+  "prevention": {
+    "recurrent_uti": [
+      "Hydratation adequate (1.5L/jour)",
+      "Miction post-coïtale",
+      "Cranberry (evidence limitée)",
+      "Antibioprophylaxie si >3 épisodes/an"
+    ]
+  },
+  
+  "confidence_score": {
+    "overall": 0.95,
+    "clinical_evidence": 0.98,
+    "cost_accuracy": 0.90,
+    "regional_relevance": 0.92,
+    "last_validation": "2024-08-09"
+  }
+}

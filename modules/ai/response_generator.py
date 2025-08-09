@@ -133,19 +133,33 @@ Réponds TOUJOURS de manière directe et utile."""
         
         # Add orchestrator results
         if results and results.get("success", True):
-            prompt += "RÉSULTATS DU SYSTÈME :\n"
-            prompt += json.dumps(results, indent=2, ensure_ascii=False)
-            prompt += "\n\n"
+            # For care pathway with structured data, provide minimal context to avoid duplication
+            if intent == "care_pathway" and results.get("type") == "care_pathway" and results.get("pathway", {}).get("evidence"):
+                prompt += "RÉSULTATS DU SYSTÈME :\n"
+                pathway = results.get("pathway", {})
+                prompt += f"- Condition: {pathway.get('condition', 'N/A')}\n"
+                prompt += f"- Evidence: {pathway.get('evidence', {}).get('level', 'N/A')} ({pathway.get('evidence', {}).get('source', 'N/A')})\n"
+                prompt += f"- Structured data available: pathway steps, medications, quality indicators\n\n"
+            else:
+                prompt += "RÉSULTATS DU SYSTÈME :\n"
+                prompt += json.dumps(results, indent=2, ensure_ascii=False)
+                prompt += "\n\n"
         
         prompt += """CONSIGNES DE RÉPONSE :
 1. RÉPONDS DIRECTEMENT à la question sans préambule
-2. UTILISE les données du système si disponibles
-3. FORMAT structuré avec emojis appropriés
-4. PROPOSE des actions concrètes 
-5. MENTIONNE les sources (BDPM, Annuaire Santé, etc.)
-6. TERMINE par une question courte si pertinent
+2. Pour les parcours de soins avec données structurées: DONNE SEULEMENT UN TITRE COURT ET REDIRIGE vers les détails visuels
+3. ÉVITE ABSOLUMENT de mentionner des étapes spécifiques, médicaments, ou coûts qui seront affichés visuellement
+4. FORMAT: Titre + brève mention de fiabilité + direction vers les détails structurés
+5. MAXIMUM 2-3 lignes de texte pour les parcours avec données structurées
+6. MENTIONNE la source d'évidence si pertinente
+7. PAS de questions de suivi pour les parcours structurés
 
-RÉPONSE DIRECTE :"""
+EXEMPLE POUR PARCOURS STRUCTURÉ:
+"📋 **Parcours personnalisé** (Niveau A, 95% fiabilité)
+
+Consultez les recommandations détaillées ci-dessous."
+
+RÉPONSE CONCISE :"""
         
         return prompt
     
@@ -254,10 +268,29 @@ RÉPONSE DIRECTE :"""
         elif intent == "care_pathway":
             pathway_data = results.get("pathway", {})
             if pathway_data.get("success"):
-                return f"🗺️ **Parcours de soins optimisé**\n\n" \
-                       f"📋 Recommandations établies selon votre profil\n" \
-                       f"💰 Estimation des coûts incluse\n\n" \
-                       f"Souhaitez-vous plus de détails sur une étape ?"
+                condition = pathway_data.get("condition", "votre pathologie")
+                evidence_level = pathway_data.get("evidence", {}).get("level", "")
+                confidence = pathway_data.get("evidence", {}).get("confidence", 0)
+                
+                # Check if we have comprehensive structured data
+                has_rich_data = (
+                    pathway_data.get("evidence") and 
+                    pathway_data.get("medications") and 
+                    len(pathway_data.get("medications", [])) > 0 and
+                    pathway_data.get("pathway_steps") and 
+                    len(pathway_data.get("pathway_steps", [])) > 0
+                )
+                
+                if has_rich_data:
+                    # Minimal, non-redundant response for rich structured data
+                    confidence_text = f"{int(confidence*100)}% fiabilité" if confidence > 0 else "haute fiabilité"
+                    return f"📋 **Parcours personnalisé** (Niveau {evidence_level}, {confidence_text})\n\nConsultez les recommandations détaillées ci-dessous."
+                else:
+                    # Detailed fallback when no structured data available
+                    return f"🗺️ **Parcours de soins optimisé**\n\n" \
+                           f"📋 Recommandations établies selon votre profil\n" \
+                           f"💰 Estimation des coûts incluse\n\n" \
+                           f"Souhaitez-vous plus de détails sur une étape ?"
         
         elif intent == "simulate_cost":
             simulation = results.get("simulation", {})

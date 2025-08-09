@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Paperclip, Loader, Bot, User } from 'lucide-react'
 import { useAppStore, useActions, useChat } from '../store/appStore'
 import { DocumentUpload } from './DocumentUpload'
+import { KnowledgeBasedResponse } from './KnowledgeBasedResponse'
 
 export function ChatInterface() {
   const [message, setMessage] = useState('')
@@ -101,8 +102,16 @@ export function ChatInterface() {
                     ? 'bg-primary-600 text-white'
                     : 'bg-white border border-gray-200 text-gray-900'
                 }`}>
-                  {/* Check if content contains HTML tags */}
-                  {msg.content.includes('<') && msg.content.includes('>') ? (
+                  {msg.type === 'ai' && msg.structured_data ? (
+                    <KnowledgeBasedResponse
+                      content={msg.content}
+                      evidence={msg.structured_data.evidence}
+                      medications={msg.structured_data.medications}
+                      pathway_steps={msg.structured_data.pathway_steps}
+                      quality_indicators={msg.structured_data.quality_indicators}
+                      sources={msg.structured_data.sources}
+                    />
+                  ) : msg.content.includes('<') && msg.content.includes('>') ? (
                     <div 
                       className="text-sm"
                       dangerouslySetInnerHTML={{ __html: msg.content }}

@@ -35,6 +35,36 @@ export interface ChatMessage {
   content: string
   timestamp: Date
   attachments?: File[]
+  // Enhanced data for knowledge-based responses
+  structured_data?: {
+    evidence?: {
+      level?: string
+      source?: string
+      confidence?: number
+      last_updated?: string
+    }
+    medications?: Array<{
+      name: string
+      cost: number
+      reimbursement: number
+      advantages?: string[]
+      dosage?: string
+    }>
+    pathway_steps?: Array<{
+      step: number
+      type: string
+      timing: string
+      rationale: string
+      cost?: number
+      wait_time?: string
+    }>
+    quality_indicators?: {
+      success_rate?: number
+      resolution_time_days?: number
+      patient_satisfaction?: number
+    }
+    sources?: string[]
+  }
 }
 
 export interface ReimbursementAnalysis {
@@ -192,6 +222,56 @@ export const useAppStore = create<AppState>((set, get) => ({
             })
           })
           
+          // Parse structured data for enhanced display
+          const parseStructuredData = (responseData: any) => {
+            const structured: any = {}
+            
+            // Check if we have a care pathway result with structured data
+            if (responseData?.results?.type === 'care_pathway' && responseData?.results?.pathway) {
+              const pathway = responseData.results.pathway
+              
+              // Extract evidence information
+              if (pathway.evidence) {
+                structured.evidence = pathway.evidence
+              }
+              
+              // Extract medications
+              if (pathway.medications && pathway.medications.length > 0) {
+                structured.medications = pathway.medications
+              }
+              
+              // Extract pathway steps
+              if (pathway.pathway_steps && pathway.pathway_steps.length > 0) {
+                structured.pathway_steps = pathway.pathway_steps
+              }
+              
+              // Extract quality indicators (flexible for different pathology types)
+              if (pathway.quality_indicators) {
+                structured.quality_indicators = pathway.quality_indicators
+              }
+              
+              // Extract sources
+              const sources = []
+              if (pathway.evidence?.source) {
+                sources.push(pathway.evidence.source)
+              }
+              // Support multiple sources for expanded knowledge base
+              if (pathway.sources && Array.isArray(pathway.sources)) {
+                sources.push(...pathway.sources)
+              }
+              if (sources.length > 0) {
+                structured.sources = [...new Set(sources)] // Remove duplicates
+              }
+            }
+            
+            // Future: Add support for other result types as knowledge base expands
+            // - reimbursement simulations with structured breakdowns
+            // - document analysis with structured insights
+            // - medication comparisons with structured alternatives
+            
+            return Object.keys(structured).length > 0 ? structured : undefined
+          }
+          
           // Add AI response
           set((state) => ({
             chatHistory: [
@@ -200,7 +280,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                 id: Math.random().toString(36).substring(2, 15),
                 type: 'ai' as const,
                 content: response.response,
-                timestamp: new Date()
+                timestamp: new Date(),
+                structured_data: parseStructuredData(response.data)
               }
             ],
             isTyping: false

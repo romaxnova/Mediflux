@@ -18,7 +18,7 @@ class BDPMClient:
     """
     
     def __init__(self):
-        self.api_url = "https://api-bdpm-graphql.axel-op.fr/graphql"
+        self.api_url = "https://mediflux-bdpm-api.onrender.com/graphql"
         self.timeout = 30
         self.logger = logging.getLogger(__name__)
     
@@ -59,8 +59,8 @@ class BDPMClient:
     async def _search_by_name(self, name: str, limit: int) -> Dict[str, Any]:
         """Search medications by name/denomination"""
         query = """
-        query SearchMedicationsByName($name: StringFilter!, $limit: Int) {
-            medicaments(denomination: $name, limit: $limit) {
+        query SearchMedicationsByName($limit: Int) {
+            medicaments(limit: $limit) {
                 CIS
                 denomination
                 forme_pharmaceutique
@@ -92,12 +92,37 @@ class BDPMClient:
         }
         """
         
-        variables = {
-            "name": {"contains_one_of": [name.lower()]},
-            "limit": limit
-        }
+        variables = {"limit": limit * 10}  # Get more results to filter
         
-        return await self._execute_graphql_query(query, variables, "medicaments")
+        result = await self._execute_graphql_query(query, variables, "medicaments")
+        
+        # Filter results by name after getting from API
+        if result["success"] and result["results"]:
+            filtered_results = []
+            search_lower = name.lower()
+            
+            for med in result["results"]:
+                denomination = med.get("denomination", "").lower()
+                # Check if medication name contains the search term
+                if search_lower in denomination:
+                    filtered_results.append(med)
+                else:
+                    # Also check substances
+                    for substance in med.get("substances", []):
+                        for sub_name in substance.get("denominations", []):
+                            if search_lower in sub_name.lower():
+                                filtered_results.append(med)
+                                break
+                        if med in filtered_results:
+                            break
+                
+                if len(filtered_results) >= limit:
+                    break
+            
+            result["results"] = filtered_results[:limit]
+            result["total_count"] = len(filtered_results)
+        
+        return result
     
     async def _search_by_substance(self, substance: str, limit: int) -> Dict[str, Any]:
         """Search medications by active substance"""
@@ -152,8 +177,8 @@ class BDPMClient:
     async def _search_by_cis_code(self, cis_code: str) -> Dict[str, Any]:
         """Search medication by specific CIS code"""
         query = """
-        query SearchByCIS($cis: String!) {
-            medicament(CIS: $cis) {
+        query SearchByCIS($cis: [ID!]) {
+            medicaments(CIS: $cis) {
                 CIS
                 denomination
                 forme_pharmaceutique
@@ -185,13 +210,9 @@ class BDPMClient:
         }
         """
         
-        variables = {"cis": cis_code}
+        variables = {"cis": [cis_code]}
         
-        result = await self._execute_graphql_query(query, variables, "medicament")
-        
-        # Convert single result to list format for consistency
-        if result["success"] and result["results"]:
-            result["results"] = [result["results"]]
+        result = await self._execute_graphql_query(query, variables, "medicaments")
         
         return result
     

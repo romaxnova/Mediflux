@@ -79,14 +79,17 @@ class IntentRouter:
             ],
             "practitioner_search": [
                 r"trouver.*(médecin|docteur|spécialiste)",
-                r"chercher.*(praticien|cabinet)",
+                r"cherch(e|er|ez).*(médecin|docteur|spécialiste|praticien|cabinet)",
                 r"find.*(doctor|practitioner)",
                 r"cardiologue|dentiste|kinésithérapeute|sage-femme",
                 r"hôpital|clinique|centre.*médical",
                 # Enhanced patterns for finding healthcare providers
                 r"où.*consulter",
                 r"besoin.*d.*un.*(médecin|docteur)",
-                r"consultation.*avec.*(spécialiste|généraliste)"
+                r"consultation.*avec.*(spécialiste|généraliste)",
+                # Additional specific patterns
+                r"(médecin|docteur).*(généraliste|spécialiste)",
+                r"(un|une).*(médecin|docteur|spécialiste)"
             ]
         }
     
@@ -114,7 +117,11 @@ class IntentRouter:
                 r"(sage-femme|midwife)",
                 r"(ophtalmologue|ophthalmologist)",
                 r"(dermatologue|dermatologist)",
-                r"(gynécologue|gynecologist)"
+                r"(gynécologue|gynecologist)",
+                r"(médecin|doctor|docteur)",
+                r"(généraliste|general practitioner)",
+                r"(spécialiste|specialist)",
+                r"(praticien|practitioner)"
             ],
             "location": [
                 r"(?:à|in|dans|en|sur)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
