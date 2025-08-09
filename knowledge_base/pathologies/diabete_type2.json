@@ -1,0 +1,126 @@
+{
+  "pathology": {
+    "name": "Diabète type 2",
+    "icd10": "E11",
+    "aliases": ["diabète", "diabète non insulino-dépendant", "DNID", "diabète sucré", "diabete"],
+    "severity_levels": ["débutant", "équilibré", "compliqué"]
+  },
+  
+  "clinical_pathway": {
+    "evidence_level": "A",
+    "source": "SFD 2024, ADA Guidelines",
+    "last_updated": "2024-08-09",
+    "confidence": 0.94,
+    
+    "standard_protocol": {
+      "step_1": {
+        "action": "Consultation médecin généraliste ou diabétologue",
+        "timing": "immediate",
+        "rationale": "Confirmation diagnostique (HbA1c ≥ 6.5% ou glycémie à jeun ≥ 1.26g/L), évaluation des complications",
+        "cost_estimate": {
+          "consultation": 25.0,
+          "patient_cost": 6.25
+        },
+        "wait_time": "1-2 semaines"
+      },
+      "step_2": {
+        "action": "Bilan biologique initial",
+        "timing": "dans les 15 jours",
+        "rationale": "HbA1c, bilan lipidique, créatininémie, microalbuminurie, fond d'œil",
+        "cost_estimate": {
+          "biologie": 85.0,
+          "patient_cost": 21.25
+        },
+        "wait_time": "1 semaine"
+      },
+      "step_3": {
+        "action": "Éducation thérapeutique",
+        "timing": "1 mois après diagnostic",
+        "rationale": "Apprentissage autosurveillance, diététique, activité physique",
+        "cost_estimate": {
+          "education": 120.0,
+          "patient_cost": 0.0
+        },
+        "wait_time": "2-4 semaines"
+      },
+      "step_4": {
+        "action": "Suivi trimestriel",
+        "timing": "tous les 3 mois",
+        "rationale": "Ajustement thérapeutique, surveillance complications",
+        "cost_estimate": {
+          "consultation": 25.0,
+          "biologie": 45.0,
+          "patient_cost": 17.5
+        },
+        "wait_time": "standard"
+      }
+    }
+  },
+  
+  "medications": {
+    "first_line": [
+      {
+        "name": "Metformine",
+        "bdpm_cis": "68312345",
+        "dosage": "500mg x2/jour puis adaptation",
+        "cost": 12.50,
+        "reimbursement": 0.65,
+        "advantages": ["Première intention", "Pas d'hypoglycémie", "Cardioprotecteur"],
+        "contraindications": ["IR sévère", "Insuffisance cardiaque décompensée"]
+      }
+    ],
+    "second_line": [
+      {
+        "name": "Gliclazide LP",
+        "bdmp_cis": "68456789",
+        "dosage": "30mg x1/jour matin",
+        "cost": 18.30,
+        "reimbursement": 0.65,
+        "advantages": ["Libération prolongée", "Bon profil hypoglycémie"],
+        "monitoring": ["Glycémie à jeun", "HbA1c trimestielle"]
+      },
+      {
+        "name": "Sitagliptine",
+        "bdpm_cis": "68789123",
+        "dosage": "100mg x1/jour",
+        "cost": 35.60,
+        "reimbursement": 0.65,
+        "advantages": ["Inhibiteur DPP4", "Neutralité pondérale"],
+        "monitoring": ["Fonction rénale"]
+      }
+    ]
+  },
+  
+  "quality_indicators": {
+    "objectif_hba1c": 7.0,
+    "delai_equilibre": "3-6 mois",
+    "taux_complications": 0.15,
+    "observance_traitement": 0.78,
+    "satisfaction_patient": 4.1,
+    "cout_annuel_moyen": 1450,
+    "data_source": "SNDS 2024",
+    "sample_size": 15670
+  },
+  
+  "monitoring_protocol": {
+    "hba1c_frequency": "tous les 3 mois",
+    "blood_pressure": "chaque consultation",
+    "lipid_profile": "annuel",
+    "renal_function": "annuel",
+    "eye_screening": "annuel",
+    "foot_examination": "annuel"
+  },
+  
+  "regional_variations": {
+    "paris": {
+      "diabetologue_wait_time": "4-6 semaines",
+      "education_centers": 12,
+      "specialized_nurses": "disponible"
+    },
+    "marseille": {
+      "diabetologue_wait_time": "6-8 semaines", 
+      "education_centers": 8,
+      "specialized_nurses": "limitée"
+    }
+  }
+}

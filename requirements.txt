@@ -19,6 +19,11 @@ sqlite3  # Built-in with Python
 # Data processing
 pandas>=2.0.0
 
+# Intelligent condition extraction and NLP
+spacy>=3.7.0
+fuzzywuzzy>=0.18.0
+python-levenshtein>=0.21.0
+
 # OCR for document analysis
 pytesseract>=0.3.10
 Pillow>=10.0.0

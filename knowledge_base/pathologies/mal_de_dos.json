@@ -1,0 +1,114 @@
+{
+  "pathology": {
+    "name": "Mal de dos",
+    "icd10": "M54.5",
+    "aliases": ["lombalgie", "lumbago", "douleur lombaire", "mal dos", "dos"],
+    "severity_levels": ["aigu", "subaigu", "chronique"]
+  },
+  
+  "clinical_pathway": {
+    "evidence_level": "A",
+    "source": "HAS Recommandations 2024, SFRE",
+    "last_updated": "2024-08-09",
+    "confidence": 0.92,
+    
+    "standard_protocol": {
+      "step_1": {
+        "action": "Consultation médecin généraliste",
+        "timing": "immediate",
+        "rationale": "Évaluation clinique initiale, exclusion des drapeaux rouges (syndrome de la queue de cheval, fracture, infection)",
+        "cost_estimate": {
+          "consultation": 25.0,
+          "patient_cost": 6.25
+        },
+        "wait_time": "24-48h"
+      },
+      "step_2": {
+        "action": "Traitement médicamenteux de première intention", 
+        "timing": "immediate",
+        "rationale": "Antalgiques selon l'échelle OMS : paracétamol puis AINS si nécessaire",
+        "cost_estimate": {
+          "medicaments": 8.50,
+          "patient_cost": 3.0
+        },
+        "wait_time": "none"
+      },
+      "step_3": {
+        "action": "Kinésithérapie",
+        "timing": "if_persistence_72h", 
+        "rationale": "Mobilisation précoce, exercices thérapeutiques, prévention de la chronicisation",
+        "cost_estimate": {
+          "seances": 260.0,
+          "patient_cost": 65.0
+        },
+        "wait_time": "48-72h"
+      },
+      "step_4": {
+        "action": "Imagerie si nécessaire",
+        "timing": "after_4_6_weeks",
+        "rationale": "IRM lombaire uniquement si suspicion de pathologie spécifique ou échec thérapeutique", 
+        "cost_estimate": {
+          "irm": 250.0,
+          "patient_cost": 62.50
+        },
+        "wait_time": "1-2 semaines"
+      }
+    }
+  },
+  
+  "medications": {
+    "first_line": [
+      {
+        "name": "Paracétamol",
+        "dosage": "1g x3/jour",
+        "cost": 2.50,
+        "reimbursement_rate": 0.65,
+        "advantages": ["Première intention", "Peu d'effets secondaires"],
+        "duration": "7 jours maximum",
+        "bdpm_reference": "paracetamol_1g"
+      }
+    ],
+    "second_line": [
+      {
+        "name": "Ibuprofène", 
+        "dosage": "400mg x3/jour",
+        "cost": 3.20,
+        "reimbursement_rate": 0.65,
+        "advantages": ["Anti-inflammatoire", "Action sur la douleur et l'inflammation"],
+        "duration": "5 jours maximum", 
+        "contraindications": "Ulcère gastrique, insuffisance rénale",
+        "bdpm_reference": "ibuprofen_400mg"
+      }
+    ],
+    "adjuvant": [
+      {
+        "name": "Thiocolchicoside",
+        "dosage": "4mg x2/jour",
+        "cost": 6.80, 
+        "reimbursement_rate": 0.65,
+        "advantages": ["Contractures musculaires"],
+        "duration": "7 jours maximum",
+        "indication": "Seulement si contractures importantes",
+        "bdpm_reference": "thiocolchicoside_4mg"
+      }
+    ]
+  },
+  
+  "quality_indicators": {
+    "efficacite_traitement": 0.85,
+    "delai_guerison": "7-14 jours", 
+    "taux_recidive": 0.30,
+    "cout_moyen": 120.0,
+    "satisfaction_patient": 4.1,
+    "retour_activite": "48-72h"
+  },
+  
+  "red_flags": [
+    "Syndrome de la queue de cheval",
+    "Déficit neurologique progressif", 
+    "Fièvre associée",
+    "Antécédent de cancer",
+    "Âge >50 ans avec première lombalgie",
+    "Traumatisme récent"
+  ]
+}

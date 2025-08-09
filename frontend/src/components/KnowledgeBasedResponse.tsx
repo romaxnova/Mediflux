@@ -44,6 +44,38 @@ interface KnowledgeBasedResponseProps {
     [key: string]: any
   }
   sources?: string[]
+  // Document analysis support
+  document_type?: string
+  extracted_data?: Record<string, any>
+  coverage_info?: {
+    dental?: number
+    optical?: number
+    consultation?: number
+    [key: string]: any
+  }
+  insights?: string[]
+  confidence?: number
+  // Intelligent condition extraction metadata
+  condition_extraction?: {
+    original_query?: string
+    extracted_condition?: string
+    confidence?: number
+    synonyms?: string[]
+  }
+  // Cost breakdown information
+  cost_breakdown?: {
+    total_estimated_cost?: number
+    patient_cost?: number
+    evidence_based?: boolean
+    [key: string]: any
+  }
+  // Regional context
+  regional_context?: {
+    location?: string
+    data_source?: string
+    last_updated?: string
+    [key: string]: any
+  }
 }
 
 const EvidenceBadge: React.FC<{ evidence: EvidenceMetadata }> = ({ evidence }) => {
@@ -269,6 +301,70 @@ const QualityIndicators: React.FC<{ indicators: NonNullable<KnowledgeBasedRespon
   )
 }
 
+const DocumentAnalysisCard: React.FC<{ 
+  document_type: string
+  extracted_data: Record<string, any>
+  coverage_info?: Record<string, any>
+  insights?: string[]
+  confidence?: number 
+}> = ({ document_type, extracted_data, coverage_info, insights, confidence }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.3 }}
+    className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border-2 border-purple-200 rounded-xl p-4 shadow-sm"
+  >
+    <div className="flex items-center gap-2 mb-3">
+      <FileText className="w-4 h-4 text-purple-600" />
+      <h4 className="text-sm font-semibold text-purple-800">Analyse de document</h4>
+      {confidence && (
+        <div className="ml-auto flex items-center gap-1 px-2 py-1 bg-purple-100 rounded-full">
+          <CheckCircle className="w-3 h-3 text-purple-600" />
+          <span className="text-xs font-medium text-purple-700">{Math.round(confidence * 100)}%</span>
+        </div>
+      )}
+    </div>
+    
+    <div className="space-y-3">
+      {/* Document type */}
+      <div className="flex items-center gap-2 p-2 bg-white/60 rounded-lg border border-purple-100">
+        <Badge className="w-3 h-3 text-purple-600" />
+        <span className="text-sm font-medium text-purple-800">Type: {document_type}</span>
+      </div>
+      
+      {/* Coverage info */}
+      {coverage_info && Object.keys(coverage_info).length > 0 && (
+        <div className="p-3 bg-white/60 rounded-lg border border-purple-100">
+          <h5 className="text-xs font-semibold text-purple-700 mb-2">Couverture détectée</h5>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {Object.entries(coverage_info).map(([key, value]) => (
+              <div key={key} className="flex justify-between">
+                <span className="text-purple-600 capitalize">{key}:</span>
+                <span className="font-medium text-purple-800">{value}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Key insights */}
+      {insights && insights.length > 0 && (
+        <div className="p-3 bg-white/60 rounded-lg border border-purple-100">
+          <h5 className="text-xs font-semibold text-purple-700 mb-2">Points clés</h5>
+          <ul className="space-y-1">
+            {insights.slice(0, 3).map((insight, index) => (
+              <li key={index} className="text-xs text-purple-600 flex items-start gap-1">
+                <div className="w-1 h-1 bg-purple-400 rounded-full mt-1.5 flex-shrink-0"></div>
+                <span>{insight}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  </motion.div>
+)
+
 // Simple markdown processor for content
 const processMarkdown = (text: string): JSX.Element => {
   const processedText = text
@@ -293,10 +389,23 @@ export const KnowledgeBasedResponse: React.FC<KnowledgeBasedResponseProps> = ({
   medications,
   pathway_steps,
   quality_indicators,
-  sources
+  sources,
+  // Document analysis props
+  document_type,
+  extracted_data,
+  coverage_info,
+  insights,
+  confidence,
+  // Intelligent extraction props
+  condition_extraction,
+  cost_breakdown,
+  regional_context
 }) => {
   // Check if this is a knowledge-based response
-  const isKnowledgeBased = evidence || medications || pathway_steps || quality_indicators
+  const isKnowledgeBased = evidence || medications || pathway_steps || quality_indicators || document_type
+
+  // Check if this is a document analysis response
+  const isDocumentAnalysis = document_type && (extracted_data || coverage_info || insights)
 
   if (!isKnowledgeBased) {
     // Fallback to simple content display with markdown processing
@@ -316,6 +425,41 @@ export const KnowledgeBasedResponse: React.FC<KnowledgeBasedResponseProps> = ({
     >
       {/* Evidence badge */}
       {evidence && <EvidenceBadge evidence={evidence} />}
+      
+      {/* Condition extraction confidence */}
+      {condition_extraction && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-3 border border-indigo-200"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+                <Shield className="w-3 h-3 text-white" />
+              </div>
+              <span className="text-sm font-medium text-indigo-800">
+                Détection: {condition_extraction.extracted_condition || 'N/A'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${
+                (condition_extraction.confidence || 0) >= 0.9 ? 'bg-green-500' :
+                (condition_extraction.confidence || 0) >= 0.7 ? 'bg-yellow-500' : 'bg-red-500'
+              }`}></div>
+              <span className="text-xs font-semibold text-indigo-700">
+                {Math.round((condition_extraction.confidence || 0) * 100)}%
+              </span>
+            </div>
+          </div>
+          {condition_extraction.original_query && (
+            <div className="mt-2 text-xs text-indigo-600">
+              Query: "{condition_extraction.original_query}"
+            </div>
+          )}
+        </motion.div>
+      )}
       
       {/* Main content */}
       <motion.div 
@@ -373,6 +517,17 @@ export const KnowledgeBasedResponse: React.FC<KnowledgeBasedResponseProps> = ({
       
       {/* Quality indicators */}
       {quality_indicators && <QualityIndicators indicators={quality_indicators} />}
+      
+      {/* Document analysis */}
+      {isDocumentAnalysis && (
+        <DocumentAnalysisCard
+          document_type={document_type!}
+          extracted_data={extracted_data || {}}
+          coverage_info={coverage_info}
+          insights={insights}
+          confidence={confidence}
+        />
+      )}
       
       {/* Sources */}
       {sources && sources.length > 0 && (

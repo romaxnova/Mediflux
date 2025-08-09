@@ -1,0 +1,142 @@
+{
+  "pathology": {
+    "name": "Hypertension artérielle",
+    "icd10": "I10",
+    "aliases": ["hypertension", "HTA", "tension élevée", "pression artérielle élevée", "tension"],
+    "severity_levels": ["grade 1", "grade 2", "grade 3", "compliquée"]
+  },
+  
+  "clinical_pathway": {
+    "evidence_level": "A",
+    "source": "ESC/ESH Guidelines 2023, SFHTA",
+    "last_updated": "2024-08-09",
+    "confidence": 0.93,
+    
+    "standard_protocol": {
+      "step_1": {
+        "action": "Mesures répétées de tension artérielle",
+        "timing": "immediate",
+        "rationale": "Confirmation diagnostique (≥140/90 mmHg), mesure au cabinet et MAPA si possible",
+        "cost_estimate": {
+          "consultation": 25.0,
+          "mapa": 45.0,
+          "patient_cost": 17.5
+        },
+        "wait_time": "1-2 semaines"
+      },
+      "step_2": {
+        "action": "Bilan d'extension",
+        "timing": "dans le mois",
+        "rationale": "Évaluation retentissement cardiaque, rénal, ophtalmologique",
+        "cost_estimate": {
+          "ecg": 20.0,
+          "biologie": 65.0,
+          "fond_oeil": 35.0,
+          "patient_cost": 30.0
+        },
+        "wait_time": "2-3 semaines"
+      },
+      "step_3": {
+        "action": "Règles hygiéno-diététiques",
+        "timing": "immédiat",
+        "rationale": "Réduction sel, activité physique, perte de poids si surpoids",
+        "cost_estimate": {
+          "consultation_dieteticienne": 60.0,
+          "patient_cost": 48.0
+        },
+        "wait_time": "1-2 semaines"
+      },
+      "step_4": {
+        "action": "Traitement pharmacologique si objectif non atteint",
+        "timing": "après 3 mois RHD",
+        "rationale": "Objectif <140/90 mmHg (ou <130/80 si haut risque CV)",
+        "cost_estimate": {
+          "consultation": 25.0,
+          "patient_cost": 6.25
+        },
+        "wait_time": "standard"
+      }
+    }
+  },
+  
+  "medications": {
+    "first_line": [
+      {
+        "name": "Lisinopril",
+        "bdpm_cis": "68234567",
+        "dosage": "10mg x1/jour matin",
+        "cost": 8.20,
+        "reimbursement": 0.65,
+        "advantages": ["IEC première intention", "Cardioprotecteur", "Néphroprotecteur"],
+        "contraindications": ["Grossesse", "Sténose bilatérale artères rénales"]
+      },
+      {
+        "name": "Amlodipine",
+        "bdpm_cis": "68345678",
+        "dosage": "5mg x1/jour",
+        "cost": 6.50,
+        "reimbursement": 0.65,
+        "advantages": ["Inhibiteur calcique", "Longue durée d'action"],
+        "surveillance": ["Œdèmes", "Fonction rénale"]
+      }
+    ],
+    "combination": [
+      {
+        "name": "Perindopril/Amlodipine",
+        "bdpm_cis": "68456789",
+        "dosage": "5mg/5mg x1/jour",
+        "cost": 15.80,
+        "reimbursement": 0.65,
+        "advantages": ["Association fixe", "Meilleure observance"],
+        "indication": "Si monothérapie insuffisante"
+      }
+    ]
+  },
+  
+  "quality_indicators": {
+    "objectif_pa": "140/90 mmHg",
+    "taux_controle": 0.67,
+    "delai_equilibre": "3-6 mois",
+    "prevention_avc": 0.35,
+    "prevention_infarctus": 0.25,
+    "observance_traitement": 0.72,
+    "satisfaction_patient": 4.0,
+    "cout_annuel_moyen": 680,
+    "data_source": "CNAMTS 2024",
+    "sample_size": 24500
+  },
+  
+  "monitoring_protocol": {
+    "tension_frequency": "tous les 3 mois initialement puis 6 mois",
+    "biology_monitoring": "créatinine, kaliémie annuel",
+    "cardiac_monitoring": "ECG annuel",
+    "target_adjustment": "si >140/90 mmHg",
+    "lifestyle_counseling": "chaque consultation"
+  },
+  
+  "risk_stratification": {
+    "low_risk": {
+      "criteria": "HTA grade 1, pas de FDR",
+      "target": "140/90 mmHg",
+      "monitoring": "tous les 6 mois"
+    },
+    "high_risk": {
+      "criteria": "HTA grade 2-3, diabète, ATCD CV",
+      "target": "130/80 mmHg",
+      "monitoring": "tous les 3 mois"
+    }
+  },
+  
+  "regional_variations": {
+    "paris": {
+      "cardiologue_wait_time": "6-8 semaines",
+      "mapa_availability": "disponible",
+      "nephrologue_access": "facile"
+    },
+    "rural": {
+      "cardiologue_wait_time": "12-16 semaines",
+      "mapa_availability": "limitée",
+      "nephrologue_access": "difficile"
+    }
+  }
+}

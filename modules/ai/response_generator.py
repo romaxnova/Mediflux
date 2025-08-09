@@ -298,6 +298,34 @@ RÉPONSE CONCISE :"""
                 return f"💰 **Simulation de remboursement**\n\n" \
                        f"📊 Calculs effectués" + (f" pour votre mutuelle {profile.get('mutuelle_type', '')}" if profile else "") + \
                        f"\n\n💡 Les montants dépendent de votre situation exacte"
+
+        elif intent == "analyze_document":
+            analysis = results.get("analysis", {})
+            if analysis.get("success"):
+                doc_type = analysis.get("document_type", "document")
+                confidence = analysis.get("confidence", 0)
+                
+                # Check if we have structured analysis data
+                has_structured_data = (
+                    analysis.get("extracted_data") or 
+                    analysis.get("coverage_info") or 
+                    analysis.get("insights")
+                )
+                
+                if has_structured_data:
+                    confidence_text = f"Fiabilité {int(confidence*100)}%" if confidence > 0 else "Analyse terminée"
+                    return f"📋 **Analyse de {doc_type}** ({confidence_text})\n\nDétails d'analyse ci-dessous."
+                else:
+                    return f"📄 **Document analysé**\n\n" \
+                           f"🔍 Extraction des données en cours\n" \
+                           f"💡 Les résultats apparaîtront sous peu"
+            elif "error" in results:
+                if "No document provided" in results["error"]:
+                    return f"📄 **Analyse de document médical** (Non disponible)\n\n" \
+                           f"Aucun document fourni pour l'analyse. Veuillez télécharger un document pour continuer."
+                else:
+                    return f"❌ **Erreur d'analyse**\n\n" \
+                           f"Impossible d'analyser le document. Veuillez réessayer avec un fichier valide."
         
         # General fallback
         user_name = profile.get("name", "")

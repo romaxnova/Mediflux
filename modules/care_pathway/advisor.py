@@ -13,6 +13,7 @@ import os
 # Add knowledge_base module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from knowledge_base.manager import KnowledgeBaseManager
+from intelligence.condition_extractor import MedicalConditionExtractor
 
 
 class CarePathwayAdvisor:
@@ -23,6 +24,9 @@ class CarePathwayAdvisor:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize intelligent condition extractor
+        self.condition_extractor = MedicalConditionExtractor()
         
         # Initialize knowledge base manager
         kb_path = os.path.join(os.path.dirname(__file__), '..', '..', 'knowledge_base')
@@ -69,29 +73,65 @@ class CarePathwayAdvisor:
             Structured pathway with evidence sources and confidence scores
         """
         try:
-            condition = params.get("condition", "").lower()
+            # Extract condition from user query intelligently
+            user_query = params.get("condition", "")
             location = params.get("location", "paris").lower()
             user_profile = params.get("user_profile", {})
             
+            self.logger.info(f"Processing pathway request for query: '{user_query}'")
+            
+            # Use intelligent condition extraction
+            extracted_condition = self.condition_extractor.extract_condition(user_query)
+            
+            if not extracted_condition:
+                self.logger.warning(f"Could not extract condition from query: '{user_query}'")
+                return await self._get_template_based_pathway("general", params)
+            
+            condition_key = extracted_condition.condition
+            condition_confidence = extracted_condition.confidence
+            
+            self.logger.info(f"Extracted condition: '{condition_key}' with confidence: {condition_confidence}")
+            
             # Try to get structured knowledge first
             pathway_data = self.knowledge_base.get_clinical_pathway(
-                condition=condition,
+                condition=condition_key,
                 severity="standard",
                 region=location
             )
             
             if pathway_data.get("pathway"):
                 # Use knowledge base pathway
-                return await self._format_knowledge_based_pathway(pathway_data, params)
+                result = await self._format_knowledge_based_pathway(pathway_data, params)
+                result["condition_extraction"] = {
+                    "original_query": user_query,
+                    "extracted_condition": condition_key,
+                    "confidence": condition_confidence,
+                    "synonyms": extracted_condition.synonyms
+                }
+                return result
             else:
                 # Fallback to template-based pathway
-                return await self._get_template_based_pathway(condition, params)
+                self.logger.info(f"No pathway data found for condition: {condition_key}, using template")
+                result = await self._get_template_based_pathway(condition_key, params)
+                result["condition_extraction"] = {
+                    "original_query": user_query,
+                    "extracted_condition": condition_key,
+                    "confidence": condition_confidence,
+                    "synonyms": extracted_condition.synonyms
+                }
+                return result
                 
         except Exception as e:
             self.logger.error(f"Pathway generation failed: {str(e)}")
             return {
                 "success": False,
-                "error": f"Failed to generate pathway: {str(e)}"
+                "error": f"Failed to generate pathway: {str(e)}",
+                "condition_extraction": {
+                    "original_query": params.get("condition", ""),
+                    "extracted_condition": "",
+                    "confidence": 0.0,
+                    "error": str(e)
+                }
             }
     
     async def _format_knowledge_based_pathway(self, pathway_data: Dict, params: Dict) -> Dict:
@@ -188,7 +228,7 @@ class CarePathwayAdvisor:
             "pathway_steps": optimized_pathway,
             "cost_breakdown": cost_breakdown,
             "regional_context": regional_info,
-            "estimated_timeline": self._calculate_timeline(optimized_pathway),
+            "estimated_timeline": self._estimate_timeline(optimized_pathway),
             "optimization_tips": self._generate_optimization_tips(optimized_pathway, preferences),
             "evidence": {
                 "level": "Template",

@@ -60,7 +60,18 @@ class IntentRouter:
                 r"étapes.*traitement",
                 r"démarche.*médicale",
                 r"gestion.*maladie",
-                r"stratégie.*thérapeutique"
+                r"stratégie.*thérapeutique",
+                # Medical condition patterns
+                r"hypertension|hta",
+                r"diabète.*type.*2|dt2",
+                r"mal.*de.*dos|lombalgie|dorsalgie",
+                r"infection.*urinaire|cystite",
+                r"brûlures.*urinant",
+                r"tension.*élevée",
+                r"problèmes.*hypertension",
+                r"souffre.*de",
+                r"j'ai.*des.*problèmes",
+                r"symptômes.*de"
             ],
             "medication_info": [
                 r"médicament.*\b\w+",
@@ -260,13 +271,30 @@ class IntentRouter:
             condition_patterns = [
                 r"pour.*ma\s*([A-Za-z\s-]+)",
                 r"avec.*(?:mon|ma)\s*([A-Za-z\s-]+)",
-                r"(?:maladie|condition|pathologie)\s*([A-Za-z\s-]+)"
+                r"(?:maladie|condition|pathologie)\s*([A-Za-z\s-]+)",
+                # Enhanced condition extraction patterns
+                r"problèmes.*d['']?([A-Za-z\s-]+)",
+                r"souffre.*de\s*([A-Za-z\s-]+)",
+                r"j'ai.*(?:des|un|une)\s*([A-Za-z\s-]+)",
+                r"symptômes.*de\s*([A-Za-z\s-]+)",
+                # Direct condition mentions
+                r"\b(hypertension|hta)\b",
+                r"\b(diabète.*type.*2|dt2)\b", 
+                r"\b(mal.*de.*dos|lombalgie|dorsalgie)\b",
+                r"\b(infection.*urinaire|cystite)\b"
             ]
+            
+            # Try pattern-based extraction first
             for pattern in condition_patterns:
                 match = re.search(pattern, query, re.IGNORECASE)
                 if match:
-                    params["condition"] = match.group(1).strip()
+                    condition = match.group(1).strip() if match.groups() else match.group(0).strip()
+                    params["condition"] = condition
                     break
+            
+            # If no specific pattern matched, pass the full query for intelligent extraction
+            if "condition" not in params:
+                params["condition"] = query
         
         return params
     

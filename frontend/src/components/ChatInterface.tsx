@@ -110,6 +110,14 @@ export function ChatInterface() {
                       pathway_steps={msg.structured_data.pathway_steps}
                       quality_indicators={msg.structured_data.quality_indicators}
                       sources={msg.structured_data.sources}
+                      document_type={msg.structured_data.document_type}
+                      extracted_data={msg.structured_data.extracted_data}
+                      coverage_info={msg.structured_data.coverage_info}
+                      insights={msg.structured_data.insights}
+                      confidence={msg.structured_data.confidence}
+                      condition_extraction={msg.structured_data.condition_extraction}
+                      cost_breakdown={msg.structured_data.cost_breakdown}
+                      regional_context={msg.structured_data.regional_context}
                     />
                   ) : msg.content.includes('<') && msg.content.includes('>') ? (
                     <div 

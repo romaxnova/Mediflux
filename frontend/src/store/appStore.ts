@@ -62,8 +62,20 @@ export interface ChatMessage {
       success_rate?: number
       resolution_time_days?: number
       patient_satisfaction?: number
+      [key: string]: any
     }
     sources?: string[]
+    // Document analysis support
+    document_type?: string
+    extracted_data?: Record<string, any>
+    coverage_info?: {
+      dental?: number
+      optical?: number
+      consultation?: number
+      [key: string]: any
+    }
+    insights?: string[]
+    confidence?: number
   }
 }
 
@@ -250,6 +262,21 @@ export const useAppStore = create<AppState>((set, get) => ({
                 structured.quality_indicators = pathway.quality_indicators
               }
               
+              // Extract intelligent condition extraction metadata
+              if (pathway.condition_extraction) {
+                structured.condition_extraction = pathway.condition_extraction
+              }
+              
+              // Extract cost breakdown
+              if (pathway.cost_breakdown) {
+                structured.cost_breakdown = pathway.cost_breakdown
+              }
+              
+              // Extract regional context
+              if (pathway.regional_context) {
+                structured.regional_context = pathway.regional_context
+              }
+              
               // Extract sources
               const sources = []
               if (pathway.evidence?.source) {
@@ -265,9 +292,30 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
             
             // Future: Add support for other result types as knowledge base expands
-            // - reimbursement simulations with structured breakdowns
-            // - document analysis with structured insights
-            // - medication comparisons with structured alternatives
+            
+            // Document analysis with structured insights
+            if (responseData?.results?.type === 'document_analysis' && responseData?.results?.analysis) {
+              const analysis = responseData.results.analysis
+              
+              if (analysis.document_type) {
+                structured.document_type = analysis.document_type
+              }
+              if (analysis.extracted_data) {
+                structured.extracted_data = analysis.extracted_data
+              }
+              if (analysis.coverage_info) {
+                structured.coverage_info = analysis.coverage_info
+              }
+              if (analysis.insights && analysis.insights.length > 0) {
+                structured.insights = analysis.insights
+              }
+              if (analysis.confidence) {
+                structured.confidence = analysis.confidence
+              }
+            }
+            
+            // Reimbursement simulations with structured breakdowns
+            // Medication comparisons with structured alternatives
             
             return Object.keys(structured).length > 0 ? structured : undefined
           }
