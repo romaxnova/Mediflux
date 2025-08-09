@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: bdpm-graphql-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BDPM_URL_PATH
+        value: /download/file
+    healthCheckPath: /graphql
+    autoDeploy: true
