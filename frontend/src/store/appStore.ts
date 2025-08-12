@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
-// API base URL
-const API_BASE_URL = 'http://localhost:8000'
+// API base URL - use environment variable or fallback to localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 // API helper functions
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {

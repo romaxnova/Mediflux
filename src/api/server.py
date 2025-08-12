@@ -23,10 +23,15 @@ from modules.orchestrator import MedifluxOrchestrator
 
 app = FastAPI(title="Mediflux V2 API", version="2.0.0")
 
-# Enable CORS for React frontend
+# Enable CORS for React frontend - include production domains
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000",
+        "https://mediflux-indol.vercel.app",
+        "https://*.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
