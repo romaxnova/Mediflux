@@ -13,11 +13,14 @@ src_dir = os.path.join(current_dir, 'src')
 sys.path.insert(0, src_dir)
 
 if __name__ == "__main__":
+    # Get environment variables for production deployment
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 8000))
+    
     print("🏥 Starting Mediflux V2 API Server...")
-    print("📱 Frontend: http://localhost:5173")
-    print("🔌 API: http://localhost:8000")
-    print("📚 API Docs: http://localhost:8000/docs")
+    print(f"🔌 API: http://{host}:{port}")
+    print(f"📚 API Docs: http://{host}:{port}/docs")
     print("=" * 50)
     
     # Use import string for proper reload support
-    uvicorn.run("api.server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api.server:app", host=host, port=port, reload=False)

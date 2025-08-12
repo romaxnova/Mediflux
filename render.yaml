@@ -1,16 +1,16 @@
 services:
   - type: web
-    name: bdpm-graphql-api
-    env: node
+    name: mediflux-v3-api
+    env: python
     plan: free
-    buildCommand: npm install
-    startCommand: node src/server.js
+    buildCommand: pip install -r requirements.txt
+    startCommand: python start_api.py
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: PORT
         value: 10000
-      - key: BDPM_URL_PATH
-        value: /download/file
-    healthCheckPath: /graphql
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHON_VERSION
+        value: 3.11
+    healthCheckPath: /docs
     autoDeploy: true
