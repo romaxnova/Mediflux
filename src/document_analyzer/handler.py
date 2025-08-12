@@ -230,34 +230,40 @@ class DocumentAnalyzer:
     
     def _score_text_content(self, text: str) -> int:
         """
-        Simple scoring based on useful content detection
+        Score OCR quality based on healthcare document structure and content
         """
         score = 0
         text_upper = text.upper()
         
-        # Look for names
-        if 'STADNIKOV' in text_upper or 'SVETLANA' in text_upper:
-            score += 30
+        # Look for name patterns (any capitalized names, not specific ones)
+        name_patterns = [
+            r'\b[A-Z]{4,}\s+[A-Z]{3,}\b',  # Two capitalized words (typical name format)
+            r'\b[A-Z][a-z]+\s+[A-Z][a-z]+\b'  # Proper case names
+        ]
+        for pattern in name_patterns:
+            if re.search(pattern, text):
+                score += 15
+                break
         
-        # Look for medical codes
+        # Look for medical codes (generic healthcare abbreviations)
         medical_codes = ['PHAR', 'MED', 'SVIL', 'CSTE', 'TRAN', 'DESO', 'DEPR', 'DEOR', 'OPAU', 'HOSP', 'EXTE', 
                         'PHCO', 'PHNO', 'PHOR', 'MEDE', 'AUDI', 'DENT', 'OPTI']
         code_count = sum(1 for code in medical_codes if code in text_upper)
         score += code_count * 5
         
-        # Look for percentages and PEC
-        percentage_count = len(re.findall(r'100%', text))
+        # Look for percentages and coverage indicators
+        percentage_count = len(re.findall(r'\d{1,3}%', text))
         score += min(percentage_count * 3, 30)
         
         pec_count = text_upper.count('PEC')
         score += min(pec_count * 5, 25)
         
-        # Look for numbers (AMC, adherent)
-        if re.search(r'93800019|434243085|2175477|02637273', text):
+        # Look for numeric patterns (member numbers, dates)
+        if re.search(r'\d{7,9}', text):  # 7-9 digit numbers (typical for member IDs)
             score += 20
         
-        # Look for dates
-        if re.search(r'01/01/2025|31/12/2025|01/05/2022|31/12/2022', text):
+        # Look for date patterns
+        if re.search(r'\d{2}/\d{2}/\d{4}', text):
             score += 15
         
         # Text length bonus
@@ -273,15 +279,16 @@ class DocumentAnalyzer:
         score = 0
         text_lower = text.lower()
         
-        # High value keywords
-        high_value_terms = ['stadnikov', 'ociane', 'matmut', 'adherent', 'amc']
-        for term in high_value_terms:
+        # Healthcare institution terms
+        institution_terms = ['ociane', 'matmut', 'harmonie', 'mgen', 'maaf', 'mutuelle']
+        for term in institution_terms:
             if term in text_lower:
                 score += 20
+                break
         
-        # Medium value terms
-        medium_value_terms = ['100%', 'meds', 'prho', 'prcr', 'bordeaux', 'validite']
-        for term in medium_value_terms:
+        # Healthcare document terms
+        document_terms = ['adherent', 'amc', 'tiers payant', 'carte', 'validite', 'periode']
+        for term in document_terms:
             if term in text_lower:
                 score += 10
         
@@ -290,7 +297,7 @@ class DocumentAnalyzer:
             score += 15
         if re.search(r'\d{1,2}/\d{1,2}/\d{4}', text):  # Dates
             score += 15
-        if '100%' in text:
+        if re.search(r'\d{1,3}%', text):  # Percentages
             score += 10
         
         return score
