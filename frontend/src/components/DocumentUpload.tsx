@@ -3,6 +3,9 @@ import { motion } from 'framer-motion'
 import { Upload, X, FileText, AlertCircle, CheckCircle } from 'lucide-react'
 import { useActions } from '../store/appStore'
 
+// API base URL - use environment variable or fallback to localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 interface DocumentUploadProps {
   onClose: () => void
 }
@@ -65,7 +68,7 @@ export function DocumentUpload({ onClose }: DocumentUploadProps) {
       const formData = new FormData()
       formData.append('file', file)
       
-      const response = await fetch('http://localhost:8000/document/analyze', {
+      const response = await fetch(`${API_BASE_URL}/document/analyze`, {
         method: 'POST',
         body: formData
       })
