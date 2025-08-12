@@ -18,7 +18,9 @@
       "dest": "/index.html"
     }
   ],
-  "env": {
-    "VITE_API_URL": "https://mediflux-mf64.onrender.com"
+  "build": {
+    "env": {
+      "VITE_API_URL": "https://mediflux-mf64.onrender.com"
+    }
   }
 }
