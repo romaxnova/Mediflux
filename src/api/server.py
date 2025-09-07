@@ -19,9 +19,9 @@ modules_dir = os.path.join(parent_dir, 'modules')
 sys.path.insert(0, parent_dir)
 sys.path.insert(0, modules_dir)
 
-from modules.orchestrator import MedifluxOrchestrator
+from modules.enhanced_orchestrator import EnhancedMedifluxOrchestrator
 
-app = FastAPI(title="Mediflux V2 API", version="2.0.0")
+app = FastAPI(title="Mediflux V2 API - Enhanced with LangChain", version="2.1.0")
 
 # Enable CORS for React frontend - include production domains
 app.add_middleware(
@@ -36,8 +36,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize orchestrator
-orchestrator = MedifluxOrchestrator()
+# Initialize enhanced orchestrator with LangChain
+orchestrator = EnhancedMedifluxOrchestrator(use_langchain=True)
 
 # Request/Response models
 class ChatMessage(BaseModel):
@@ -58,7 +58,34 @@ class UserProfile(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "Mediflux V2 API is running"}
+    return {"message": "Mediflux V2 API with LangChain Enhancement is running"}
+
+@app.get("/system/status")
+async def system_status():
+    """
+    Get system status including LangChain integration
+    """
+    try:
+        status = orchestrator.get_system_status()
+        return {
+            "status": "operational",
+            "system_details": status,
+            "api_version": "2.1.0",
+            "features": [
+                "LangChain intelligent routing",
+                "Grok-2 powered responses", 
+                "Specialized healthcare agents",
+                "Legacy system fallback",
+                "Document analysis",
+                "French healthcare optimization"
+            ]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "fallback_available": True
+        }
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(message: ChatMessage):

@@ -23,6 +23,12 @@ pandas>=2.0.0
 pytesseract>=0.3.10
 Pillow>=10.0.0
 
+# LangChain integration for agent orchestration
+langchain>=0.1.0
+langchain-openai>=0.1.0
+langchain-community>=0.0.38
+langsmith>=0.0.87
+
 # Local AI (TODO: implement when available)
 # mixtral-api-client  # Placeholder for local Mixtral integration
 
